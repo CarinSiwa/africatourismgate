@@ -128,3 +128,35 @@ export class VehicleAvailability extends BaseAuditEntity {
   longitude!: string | null;
 
 }
+
+@Entity('vehicle_trips')
+export class VehicleTrips extends BaseAuditEntity {
+  @PrimaryColumn('uuid', { name: 'id', length: 36 })
+  id!: string;
+
+  @Column({ type: 'varchar', name: 'vehicle_id', length: 36 })
+  vehicleId!: string;
+
+  @Column({ type: 'varchar', name: 'route_id', length: 36 })
+  routeId!: string;
+
+  @Column({ type: 'varchar', name: 'availability_id', length: 36 })
+  availabilityId!: string;
+
+  @Column({ type: 'datetime', name: 'departure_datetime' })
+  departureDatetime!: Date;
+
+  @Column({ type: 'int', name: 'max_capacity' })
+  maxCapacity!: number;
+
+  @Column({ type: 'int', name: 'seats_reserved', default: 0 })
+  seatsReserved!: number;
+
+  @Column({
+    name: 'status',
+    enum: ['open', 'payment_closed', 'completed', 'cancelled'],
+    default: 'open',
+  })
+  status!: 'open' | 'payment_closed' | 'completed' | 'cancelled';
+
+}

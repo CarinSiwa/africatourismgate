@@ -31,6 +31,9 @@ import type {
   CreateVehicleRequest,
   CreateVehicleRoutePriceTierRequest,
   CreateVehicleRouteRequest,
+  CreateVehicleTripRequest,
+  JoinVehicleTripRequest,
+  UpdateVehicleTripRequest,
   Cabin,
   CabinAvailability,
   CabinAvailabilityListQuery,
@@ -479,6 +482,8 @@ import type {
   VehicleRoutePriceTierInput,
   VehicleRoutePriceTiersListQuery,
   VehicleRoutesListQuery,
+  VehicleTrip,
+  VehicleTripsListQuery,
   VehiclesListQuery,
   UpdatePropertyImageRequest,
   UpdatePropertyRequest,
@@ -4829,6 +4834,43 @@ export class ApiClient {
       `/vehicle-routes/${routeId}/price-tiers`,
       { method: 'PUT', body: { priceTiers } },
     );
+  }
+
+  listPublicVehicleTrips(
+    query?: VehicleTripsListQuery,
+  ): Promise<PaginatedResponse<VehicleTrip>> {
+    return fetchPaginated<VehicleTrip>(this, '/public/vehicle-trips', query);
+  }
+
+  getPublicVehicleTrip(id: string): Promise<VehicleTrip> {
+    return this.request<VehicleTrip>(`/public/vehicle-trips/${id}`);
+  }
+
+  createPublicVehicleTrip(body: CreateVehicleTripRequest): Promise<VehicleTrip> {
+    return this.request<VehicleTrip>('/public/vehicle-trips', {
+      method: 'POST',
+      body,
+    });
+  }
+
+  joinPublicVehicleTrip(
+    id: string,
+    body: JoinVehicleTripRequest = {},
+  ): Promise<VehicleTrip> {
+    return this.request<VehicleTrip>(`/public/vehicle-trips/${id}/join`, {
+      method: 'POST',
+      body,
+    });
+  }
+
+  updatePublicVehicleTrip(
+    id: string,
+    body: UpdateVehicleTripRequest,
+  ): Promise<VehicleTrip> {
+    return this.request<VehicleTrip>(`/public/vehicle-trips/${id}`, {
+      method: 'PATCH',
+      body,
+    });
   }
 
   listVehicleAvailability(

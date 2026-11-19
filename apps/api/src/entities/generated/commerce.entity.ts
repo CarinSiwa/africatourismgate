@@ -74,6 +74,12 @@ export class BookingItems extends BaseAuditEntity {
   @Column({ type: 'varchar', name: 'reference_id', length: 36 })
   referenceId!: string;
 
+  @Column({ type: 'varchar', name: 'vehicle_trip_id', length: 36, nullable: true })
+  vehicleTripId!: string | null;
+
+  @Column({ type: 'varchar', name: 'route_id', length: 36, nullable: true })
+  routeId!: string | null;
+
   @Column({ type: 'varchar', name: 'title_snapshot', length: 255 })
   titleSnapshot!: string;
 

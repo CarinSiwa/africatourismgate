@@ -178,6 +178,9 @@ export type {
   CreateVehicleRequest,
   CreateVehicleRoutePriceTierRequest,
   CreateVehicleRouteRequest,
+  CreateVehicleTripRequest,
+  JoinVehicleTripRequest,
+  UpdateVehicleTripRequest,
   RentalAgenciesListQuery,
   RentalAgency,
   UpdateRentalAgencyRequest,
@@ -201,6 +204,9 @@ export type {
   VehicleRoutePriceTierInput,
   VehicleRoutePriceTiersListQuery,
   VehicleRoutesListQuery,
+  VehicleTrip,
+  VehicleTripStatus,
+  VehicleTripsListQuery,
   VehiclesListQuery,
 } from './car-rental.js';
 

@@ -235,3 +235,59 @@ export interface VehicleRoutesListQuery {
   /** When true, each route includes `priceTiers`. */
   includePriceTiers?: boolean;
 }
+
+export type VehicleTripStatus =
+  | 'open'
+  | 'payment_closed'
+  | 'completed'
+  | 'cancelled';
+
+export interface VehicleTrip {
+  id: string;
+  vehicleId: string;
+  routeId: string;
+  availabilityId: string;
+  departureDatetime: string;
+  createdByUserId: string | null;
+  maxCapacity: number;
+  seatsReserved: number;
+  seatsRemaining: number;
+  status: VehicleTripStatus;
+  /** Per-person price for current seatsReserved (or preview N). */
+  priceCentsPerPerson: number;
+  currency: string;
+  departureCity: string;
+  arrivalCity: string;
+  paymentClosesAt: string;
+  canJoin: boolean;
+  canEditDeparture: boolean;
+  createdAt: string;
+  updatedAt: string | null;
+}
+
+export interface VehicleTripsListQuery {
+  routeId?: string;
+  vehicleId?: string;
+  /** YYYY-MM-DD — trips departing that calendar day */
+  travelDate?: string;
+  status?: VehicleTripStatus;
+  page?: number;
+  limit?: number;
+}
+
+export interface CreateVehicleTripRequest {
+  vehicleId: string;
+  routeId: string;
+  /** ISO datetime of departure (set by first booker). */
+  departureDatetime: string;
+  /** Seats to reserve for the first booker (default 1). */
+  seats?: number;
+}
+
+export interface JoinVehicleTripRequest {
+  seats?: number;
+}
+
+export interface UpdateVehicleTripRequest {
+  departureDatetime: string;
+}
