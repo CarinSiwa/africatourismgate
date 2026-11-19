@@ -29,7 +29,9 @@ import {
   normalizeFooter,
   normalizeHomepageReviews,
   normalizeTripadvisorSync,
+  normalizeVehicleSharedTrip,
   normalizeWebPaymentMethods,
+  isVehicleSharedTripDepartureEditRule,
   TRIPADVISOR_SYNC_API_KEY_MAX_LENGTH,
   TRIPADVISOR_SYNC_LANGUAGE_MAX_LENGTH,
   TRIPADVISOR_SYNC_LOCATION_ID_MAX_LENGTH,
@@ -584,6 +586,41 @@ export function validateSettingValue(
         flags[key] = flag;
       }
       return normalizeCatalogProducts(flags);
+    }
+    case 'vehicle_shared_trip': {
+      const hours = value.paymentCloseHoursBeforeDeparture;
+      if (
+        hours !== undefined &&
+        (typeof hours !== 'number' ||
+          !Number.isInteger(hours) ||
+          hours < 0 ||
+          hours > 168)
+      ) {
+        throw new BadRequestException(
+          'paymentCloseHoursBeforeDeparture doit être un entier entre 0 et 168.',
+        );
+      }
+      const editRule = value.departureTimeEditableUntil;
+      if (
+        editRule !== undefined &&
+        !isVehicleSharedTripDepartureEditRule(editRule)
+      ) {
+        throw new BadRequestException(
+          'departureTimeEditableUntil doit être until_first_payment ou until_payment_close.',
+        );
+      }
+      const normalized = normalizeVehicleSharedTrip({
+        paymentCloseHoursBeforeDeparture:
+          typeof hours === 'number' ? hours : undefined,
+        departureTimeEditableUntil: isVehicleSharedTripDepartureEditRule(editRule)
+          ? editRule
+          : undefined,
+      });
+      return {
+        paymentCloseHoursBeforeDeparture:
+          normalized.paymentCloseHoursBeforeDeparture,
+        departureTimeEditableUntil: normalized.departureTimeEditableUntil,
+      };
     }
     case 'deposits': {
       const enabled = value.enabled;

@@ -15,6 +15,7 @@ import type {
   ResolvedBookingDeposits,
   ResolvedBookingItemTypeModes,
   ResolvedCatalogProducts,
+  ResolvedVehicleSharedTrip,
   ResolvedWebPaymentMethods,
 } from '@africatourismgate/types';
 import {
@@ -23,6 +24,7 @@ import {
   DEFAULT_CATALOG_PRODUCTS,
   DEFAULT_HOMEPAGE_REVIEWS,
   DEFAULT_TRIPADVISOR_SYNC,
+  DEFAULT_VEHICLE_SHARED_TRIP,
   DEFAULT_WEB_PAYMENT_METHODS,
   FOOTER_SETTING_KEY,
   mergeTripadvisorSyncApiKey,
@@ -31,6 +33,7 @@ import {
   normalizeCatalogProducts,
   normalizeHomepageReviews,
   normalizeTripadvisorSync,
+  normalizeVehicleSharedTrip,
   normalizeWebPaymentMethods,
   resolvePublicAnnouncementBanner,
   resolvePublicFooter,
@@ -535,6 +538,31 @@ export class OrganizationSettingsService extends CrudService<OrganizationSetting
         depositPercent?: number;
         depositFixedCents?: number;
       },
+    );
+  }
+
+  async getResolvedVehicleSharedTrip(
+    organizationId: string = PLATFORM_ORG_ID,
+  ): Promise<ResolvedVehicleSharedTrip> {
+    const setting = await this.settingsRepository.findOne({
+      where: {
+        organizationId,
+        settingGroup: 'booking',
+        settingKey: 'vehicle_shared_trip',
+        deletedAt: IsNull(),
+      },
+    });
+
+    if (
+      !setting?.settingValue ||
+      typeof setting.settingValue !== 'object' ||
+      Array.isArray(setting.settingValue)
+    ) {
+      return { ...DEFAULT_VEHICLE_SHARED_TRIP };
+    }
+
+    return normalizeVehicleSharedTrip(
+      setting.settingValue as Partial<ResolvedVehicleSharedTrip>,
     );
   }
 
