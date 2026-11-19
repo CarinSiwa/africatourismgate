@@ -889,6 +889,8 @@ CREATE TABLE `vehicle_routes` (
   `arrival_city` VARCHAR(120) NOT NULL,
   `price_cents` INT UNSIGNED NOT NULL,
   `currency` CHAR(3) NOT NULL DEFAULT 'USD',
+  -- 1 = visible on public /cars; 0 = hidden from /cars but still usable in packages
+  `active` TINYINT(1) NOT NULL DEFAULT 1,
   `created_by_user_id` CHAR(36) DEFAULT NULL,
   `updated_by_user_id` CHAR(36) DEFAULT NULL,
   `deleted_by_user_id` CHAR(36) DEFAULT NULL,
@@ -900,6 +902,7 @@ CREATE TABLE `vehicle_routes` (
   KEY `idx_vehicle_routes_vehicle` (`vehicle_id`),
   KEY `idx_vehicle_routes_departure` (`departure_city`),
   KEY `idx_vehicle_routes_arrival` (`arrival_city`),
+  KEY `idx_vehicle_routes_active` (`active`),
   KEY `idx_vehicle_routes_deleted_at` (`deleted_at`),
   CONSTRAINT `fk_vehicle_routes_vehicle` FOREIGN KEY (`vehicle_id`) REFERENCES `vehicles` (`id`) ON DELETE CASCADE,
   CONSTRAINT `fk_vehicle_routes_created_by` FOREIGN KEY (`created_by_user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL,

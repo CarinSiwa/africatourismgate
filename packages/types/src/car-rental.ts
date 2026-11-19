@@ -144,7 +144,11 @@ export interface VehicleAvailabilityListQuery {
   endTo?: string;
 }
 
-/** Tronçon tarifé : ville départ → ville arrivée (texte libre) pour un véhicule. */
+/**
+ * Tronçon tarifé : ville départ → ville arrivée (texte libre) pour un véhicule.
+ * `active` gates the public /cars catalogue only — inactive routes remain
+ * selectable in package products (`item_type: 'troncon'`).
+ */
 export interface VehicleRoute {
   id: string;
   vehicleId: string;
@@ -152,6 +156,8 @@ export interface VehicleRoute {
   arrivalCity: string;
   priceCents: number;
   currency: string;
+  /** 1 = visible on /cars; 0 = hidden from /cars (packages still OK). */
+  active: number;
   createdAt: string;
   updatedAt: string | null;
 }
@@ -162,6 +168,8 @@ export interface CreateVehicleRouteRequest {
   arrivalCity: string;
   priceCents: number;
   currency: string;
+  /** Defaults to 1 (visible on /cars). */
+  active?: number;
 }
 
 export type UpdateVehicleRouteRequest = Partial<

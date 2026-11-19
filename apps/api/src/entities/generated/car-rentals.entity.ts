@@ -71,6 +71,13 @@ export class VehicleRoutes extends BaseAuditEntity {
   @Column({ type: 'varchar', name: 'currency', length: 3 })
   currency!: string;
 
+  /**
+   * 1 = visible on public /cars catalogue.
+   * 0 = hidden from /cars; still usable in package_items (item_type = troncon).
+   */
+  @Column({ type: 'int', name: 'active', default: 1 })
+  active!: number;
+
 }
 
 @Entity('vehicle_availability')
