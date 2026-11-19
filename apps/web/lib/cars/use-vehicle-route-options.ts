@@ -40,12 +40,12 @@ export function useVehicleRouteOptions() {
 
   const departureCities = useMemo(() => {
     const names = new Set(pairs.map((pair) => pair.departureCity));
-    return [...names].sort((a, b) => a.localeCompare(b));
+    return Array.from(names).sort((a, b) => a.localeCompare(b));
   }, [pairs]);
 
   const allArrivalCities = useMemo(() => {
     const names = new Set(pairs.map((pair) => pair.arrivalCity));
-    return [...names].sort((a, b) => a.localeCompare(b));
+    return Array.from(names).sort((a, b) => a.localeCompare(b));
   }, [pairs]);
 
   const arrivalsByDeparture = useMemo(() => {
@@ -58,12 +58,12 @@ export function useVehicleRouteOptions() {
         map.set(key, list);
       }
     }
-    for (const [key, list] of map) {
+    Array.from(map.entries()).forEach(([key, list]) => {
       map.set(
         key,
-        [...list].sort((a, b) => a.localeCompare(b)),
+        list.slice().sort((a, b) => a.localeCompare(b)),
       );
-    }
+    });
     return map;
   }, [pairs]);
 
