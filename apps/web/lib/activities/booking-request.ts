@@ -30,11 +30,15 @@ export function getActivityListingCtaMode(
   return 'unavailable';
 }
 
-/** Detail sidebar: show inquiry form instead of checkout CTA. */
+/**
+ * Detail sidebar: show inquiry form instead of checkout CTA.
+ * `preferRequest` is kept for callers (#booking-request); with the toggle on,
+ * any view without a bookable slot shows the form (including deep links without a date).
+ */
 export function shouldShowActivityBookingRequestForm(
   detail: Pick<ActivityDetail, 'date' | 'schedules' | 'allowBookingRequestsWhenUnavailable'>,
   participants: number,
-  preferRequest: boolean,
+  _preferRequest: boolean,
 ): boolean {
   if (!detail.allowBookingRequestsWhenUnavailable) {
     return false;
@@ -47,16 +51,7 @@ export function shouldShowActivityBookingRequestForm(
     return false;
   }
 
-  if (preferRequest) {
-    return true;
-  }
-
-  // Date selected (or schedules returned) but nothing left to book.
-  if (detail.date) {
-    return true;
-  }
-
-  return false;
+  return true;
 }
 
 export function todayDateInputValue(now = new Date()): string {

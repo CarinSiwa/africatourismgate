@@ -6,7 +6,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { getVehicleDetail } from '../../lib/api/public';
 import {
   buildCarDetailHref,
-  buildCarsSearchQuery,
   toVehicleDetailQuery,
   type CarDetailSearchParams,
 } from '../../lib/cars/listings';
@@ -141,11 +140,8 @@ export function CarDetailPageContent({
     router.push(`/booking/cart?${query}`);
   }
 
-  const listHref = `/cars${buildCarsSearchQuery({
-    departureLocation: initialSearch.departureLocation,
-    arrivalLocation: initialSearch.arrivalLocation,
-    travelDate: travelDate || initialSearch.travelDate,
-  })}`;
+  // Retour liste sans filtres : la fiche porte les params de trajet, pas la recherche.
+  const listHref = '/cars';
 
   const sidebarProps = detail
     ? {

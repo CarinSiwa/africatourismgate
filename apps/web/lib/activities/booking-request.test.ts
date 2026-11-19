@@ -43,6 +43,21 @@ describe('getActivityListingCtaMode', () => {
 });
 
 describe('shouldShowActivityBookingRequestForm', () => {
+  it('shows form when no date and no schedules (deep link / map)', () => {
+    assert.equal(
+      shouldShowActivityBookingRequestForm(
+        {
+          date: '',
+          schedules: [],
+          allowBookingRequestsWhenUnavailable: true,
+        },
+        2,
+        false,
+      ),
+      true,
+    );
+  });
+
   it('shows form when preferRequest and toggle on with no bookable slots', () => {
     assert.equal(
       shouldShowActivityBookingRequestForm(
@@ -80,6 +95,21 @@ describe('shouldShowActivityBookingRequestForm', () => {
         false,
       ),
       true,
+    );
+  });
+
+  it('hides form when toggle is off even with no slots', () => {
+    assert.equal(
+      shouldShowActivityBookingRequestForm(
+        {
+          date: '',
+          schedules: [],
+          allowBookingRequestsWhenUnavailable: false,
+        },
+        1,
+        true,
+      ),
+      false,
     );
   });
 

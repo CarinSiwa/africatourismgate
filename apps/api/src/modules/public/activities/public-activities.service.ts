@@ -814,10 +814,14 @@ export class PublicActivitiesService {
       throw new NotFoundException('Activité introuvable.');
     }
 
-    const schedules = date
+    const resolvedDate =
+      date ??
+      (await this.findNextUpcomingScheduleDate(activity.id, participants));
+
+    const schedules = resolvedDate
       ? await this.buildSchedulesForDate(
           activity.id,
-          date,
+          resolvedDate,
           activity.priceCents,
           activity.currency,
         )
@@ -834,7 +838,7 @@ export class PublicActivitiesService {
       currency: activity.currency,
       destination: destination.name,
       providerName: provider.name,
-      date: date ?? '',
+      date: resolvedDate ?? '',
       participants,
       schedules,
       images: await this.loadActivityGallery(activity.id),
@@ -962,6 +966,30 @@ export class PublicActivitiesService {
         currency,
       };
     });
+  }
+
+  /** Next calendar day with an upcoming schedule (prefer places left for participants). */
+  private async findNextUpcomingScheduleDate(
+    activityId: string,
+    participants: number,
+  ): Promise<string | undefined> {
+    const rows = await this.schedulesRepository
+      .createQueryBuilder('schedule')
+      .where('schedule.activityId = :activityId', { activityId })
+      .andWhere('schedule.deletedAt IS NULL')
+      .andWhere('schedule.startDatetime >= :now', { now: new Date() })
+      .orderBy('schedule.startDatetime', 'ASC')
+      .getMany();
+
+    if (!rows.length) {
+      return undefined;
+    }
+
+    const withPlaces = rows.find(
+      (schedule) => this.remainingPlaces(schedule) >= participants,
+    );
+    const chosen = withPlaces ?? rows[0];
+    return this.toIsoDatetime(chosen.startDatetime).slice(0, 10);
   }
 
   private async loadReviewSummariesByActivityIds(
