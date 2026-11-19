@@ -326,6 +326,14 @@ INSERT INTO `organization_settings` (
   '00000000-0000-4000-8000-000000000010'
 ),
 (
+  '00000000-0000-4000-8000-000000000028',
+  '00000000-0000-4000-8000-000000000001',
+  'booking',
+  'vehicle_shared_trip',
+  '{"paymentCloseHoursBeforeDeparture":3,"departureTimeEditableUntil":"until_payment_close"}',
+  '00000000-0000-4000-8000-000000000010'
+),
+(
   '00000000-0000-4000-8000-000000000023',
   '00000000-0000-4000-8000-000000000001',
   'catalog',
