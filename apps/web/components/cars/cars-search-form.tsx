@@ -8,10 +8,10 @@ import { todayISODate } from '../../lib/hotels/dates';
 import { useTranslations } from 'next-intl';
 import { buildSearchRoute } from '../../lib/search/route';
 import {
+  SearchFormDatalistInput,
   SearchFormInput,
   SearchFormLabel,
   SearchFormPanel,
-  SearchFormSelect,
   SearchFormSubmit,
 } from '../shared';
 
@@ -35,7 +35,8 @@ export function CarsSearchForm({ initialValues }: CarsSearchFormProps) {
 
   const {
     departureCities,
-    arrivalsByDeparture,
+    arrivalsForDeparture,
+    resolveRoute,
     hasRoute,
     loading: routesLoading,
     error: routesError,
@@ -43,20 +44,10 @@ export function CarsSearchForm({ initialValues }: CarsSearchFormProps) {
 
   const today = todayISODate();
 
-  const departureOptions = useMemo(() => {
-    const options = [...departureCities];
-    const current = departureLocation.trim();
-    if (current && !options.includes(current)) options.unshift(current);
-    return options;
-  }, [departureCities, departureLocation]);
-
-  const arrivalOptions = useMemo(() => {
-    const linked = arrivalsByDeparture.get(departureLocation.trim()) ?? [];
-    const options = [...linked];
-    const current = arrivalLocation.trim();
-    if (current && !options.includes(current)) options.unshift(current);
-    return options;
-  }, [arrivalLocation, arrivalsByDeparture, departureLocation]);
+  const arrivalSuggestions = useMemo(
+    () => arrivalsForDeparture(departureLocation),
+    [arrivalsForDeparture, departureLocation],
+  );
 
   const canSwap = useMemo(() => {
     const dep = departureLocation.trim();
@@ -79,8 +70,19 @@ export function CarsSearchForm({ initialValues }: CarsSearchFormProps) {
   function handleDepartureChange(value: string) {
     setDepartureLocation(value);
     setError(null);
-    const nextArrivals = arrivalsByDeparture.get(value.trim()) ?? [];
-    if (arrivalLocation.trim() && !nextArrivals.includes(arrivalLocation.trim())) {
+
+    const nextArrivals = arrivalsForDeparture(value);
+    const currentArrival = arrivalLocation.trim();
+    if (
+      currentArrival &&
+      nextArrivals.length > 0 &&
+      !nextArrivals.some(
+        (city) => city.trim().toLowerCase() === currentArrival.toLowerCase(),
+      ) &&
+      departureCities.some(
+        (city) => city.trim().toLowerCase() === value.trim().toLowerCase(),
+      )
+    ) {
       setArrivalLocation('');
     }
   }
@@ -104,19 +106,23 @@ export function CarsSearchForm({ initialValues }: CarsSearchFormProps) {
       return;
     }
 
-    if (departure === arrival) {
+    if (departure.toLowerCase() === arrival.toLowerCase()) {
       setError(t('carsSameEndpoints'));
       return;
     }
 
-    if (!routesLoading && !routesError && !hasRoute(departure, arrival)) {
+    const resolved = resolveRoute(departure, arrival);
+    if (!routesLoading && !routesError && !resolved) {
       setError(t('carsInvalidRoute'));
       return;
     }
 
     const params = new URLSearchParams();
-    params.set('departureLocation', departure);
-    params.set('arrivalLocation', arrival);
+    params.set(
+      'departureLocation',
+      resolved?.departureCity ?? departure,
+    );
+    params.set('arrivalLocation', resolved?.arrivalCity ?? arrival);
     params.set('travelDate', travelDate);
 
     router.push(buildSearchRoute('cars', params));
@@ -131,10 +137,10 @@ export function CarsSearchForm({ initialValues }: CarsSearchFormProps) {
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-[1fr_auto_1fr_1fr_auto] lg:items-end">
         <div>
           <SearchFormLabel>{c('departureLocation')}</SearchFormLabel>
-          <SearchFormSelect
+          <SearchFormDatalistInput
             name="departureLocation"
             placeholder={routesLoading ? c('loading') : c('selectDeparture')}
-            options={departureOptions}
+            suggestions={departureCities}
             value={departureLocation}
             disabled={routesLoading}
             onChange={handleDepartureChange}
@@ -168,18 +174,18 @@ export function CarsSearchForm({ initialValues }: CarsSearchFormProps) {
 
         <div>
           <SearchFormLabel>{c('arrivalLocation')}</SearchFormLabel>
-          <SearchFormSelect
+          <SearchFormDatalistInput
             name="arrivalLocation"
             placeholder={
               routesLoading
                 ? c('loading')
-                : departureLocation
+                : departureLocation.trim()
                   ? c('selectArrival')
                   : c('selectDepartureFirst')
             }
-            options={arrivalOptions}
+            suggestions={arrivalSuggestions}
             value={arrivalLocation}
-            disabled={routesLoading || !departureLocation}
+            disabled={routesLoading}
             onChange={(value) => {
               setArrivalLocation(value);
               setError(null);

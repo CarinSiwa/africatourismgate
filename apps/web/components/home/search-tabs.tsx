@@ -16,7 +16,6 @@ import {
   SearchFormInput,
   SearchFormLabel,
   SearchFormOptionDatalistInput,
-  SearchFormSelect,
   SearchFormShell,
   SearchFormActions,
   SearchFormSubmit,
@@ -200,7 +199,8 @@ export function SearchTabs() {
   const { airports, loading: airportsLoading, error: airportsError } = usePublicAirports();
   const {
     departureCities: carDepartureCities,
-    arrivalsByDeparture: carArrivalsByDeparture,
+    arrivalsForDeparture: carArrivalsForDeparture,
+    resolveRoute: resolveCarRoute,
     hasRoute: hasCarRoute,
     loading: carRoutesLoading,
     error: carRoutesError,
@@ -249,19 +249,10 @@ export function SearchTabs() {
   const [carArrival, setCarArrival] = useState('');
   const [carError, setCarError] = useState<string | null>(null);
 
-  const carDepartureOptions = useMemo(() => {
-    const options = [...carDepartureCities];
-    const current = carDeparture.trim();
-    if (current && !options.includes(current)) options.unshift(current);
-    return options;
-  }, [carDeparture, carDepartureCities]);
-  const carArrivalOptions = useMemo(() => {
-    const linked = carArrivalsByDeparture.get(carDeparture.trim()) ?? [];
-    const options = [...linked];
-    const current = carArrival.trim();
-    if (current && !options.includes(current)) options.unshift(current);
-    return options;
-  }, [carArrival, carArrivalsByDeparture, carDeparture]);
+  const carArrivalSuggestions = useMemo(
+    () => carArrivalsForDeparture(carDeparture),
+    [carArrivalsForDeparture, carDeparture],
+  );
   const canSwapCarRoute = useMemo(() => {
     const dep = carDeparture.trim();
     const arr = carArrival.trim();
@@ -351,13 +342,14 @@ export function SearchTabs() {
         return;
       }
 
-      if (!carRoutesLoading && !carRoutesError && !hasCarRoute(departure, arrival)) {
+      const resolved = resolveCarRoute(departure, arrival);
+      if (!carRoutesLoading && !carRoutesError && !resolved) {
         setCarError(t('carsInvalidRoute'));
         return;
       }
 
-      params.set('departureLocation', departure);
-      params.set('arrivalLocation', arrival);
+      params.set('departureLocation', resolved?.departureCity ?? departure);
+      params.set('arrivalLocation', resolved?.arrivalCity ?? arrival);
       params.set('travelDate', departDate);
       router.push(buildSearchRoute('cars', params));
       return;
@@ -620,22 +612,31 @@ export function SearchTabs() {
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-[1fr_auto_1fr_1fr_auto] lg:items-end">
                   <div>
                     <SearchFormLabel>{tCars('departureLocation')}</SearchFormLabel>
-                    <SearchFormSelect
+                    <SearchFormDatalistInput
                       name="departureLocation"
                       placeholder={
                         carRoutesLoading ? tCars('loading') : tCars('selectDeparture')
                       }
-                      options={carDepartureOptions}
+                      suggestions={carDepartureCities}
                       value={carDeparture}
                       disabled={carRoutesLoading}
                       onChange={(value) => {
                         setCarDeparture(value);
                         setCarError(null);
-                        const nextArrivals =
-                          carArrivalsByDeparture.get(value.trim()) ?? [];
+                        const nextArrivals = carArrivalsForDeparture(value);
+                        const currentArrival = carArrival.trim();
                         if (
-                          carArrival.trim() &&
-                          !nextArrivals.includes(carArrival.trim())
+                          currentArrival &&
+                          nextArrivals.length > 0 &&
+                          !nextArrivals.some(
+                            (city) =>
+                              city.trim().toLowerCase() ===
+                              currentArrival.toLowerCase(),
+                          ) &&
+                          carDepartureCities.some(
+                            (city) =>
+                              city.trim().toLowerCase() === value.trim().toLowerCase(),
+                          )
                         ) {
                           setCarArrival('');
                         }
@@ -673,18 +674,18 @@ export function SearchTabs() {
                   </div>
                   <div>
                     <SearchFormLabel>{tCars('arrivalLocation')}</SearchFormLabel>
-                    <SearchFormSelect
+                    <SearchFormDatalistInput
                       name="arrivalLocation"
                       placeholder={
                         carRoutesLoading
                           ? tCars('loading')
-                          : carDeparture
+                          : carDeparture.trim()
                             ? tCars('selectArrival')
                             : tCars('selectDepartureFirst')
                       }
-                      options={carArrivalOptions}
+                      suggestions={carArrivalSuggestions}
                       value={carArrival}
-                      disabled={carRoutesLoading || !carDeparture}
+                      disabled={carRoutesLoading}
                       onChange={(value) => {
                         setCarArrival(value);
                         setCarError(null);
