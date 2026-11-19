@@ -130,8 +130,8 @@ export function VehicleSpecsGrid({ categoryName, compact = false }: VehicleSpecs
     <ul
       className={
         compact
-          ? 'grid grid-cols-1 gap-2 sm:grid-cols-3'
-          : 'grid grid-cols-1 gap-2 sm:grid-cols-3 sm:gap-3'
+          ? 'flex flex-col gap-2 sm:flex-row sm:flex-wrap'
+          : 'grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-3 lg:grid-cols-3'
       }
       role="list"
     >
@@ -140,7 +140,7 @@ export function VehicleSpecsGrid({ categoryName, compact = false }: VehicleSpecs
           key={item.label}
           className={
             compact
-              ? 'flex min-w-0 items-center gap-2 rounded-lg border border-atg-border/80 bg-atg-surface/60 px-2.5 py-2'
+              ? 'flex min-w-0 flex-1 items-center gap-2 rounded-lg border border-atg-border/80 bg-atg-surface/60 px-2.5 py-2 sm:min-w-[9.5rem]'
               : 'flex min-w-0 items-center gap-2.5 rounded-lg border border-atg-border/80 bg-atg-surface/60 px-3 py-2.5 sm:gap-3 sm:px-4 sm:py-3'
           }
         >

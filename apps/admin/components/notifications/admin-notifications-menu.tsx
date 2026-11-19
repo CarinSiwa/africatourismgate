@@ -129,7 +129,8 @@ export function AdminNotificationsMenu() {
     markAllAsRead,
   } = useAdminNotifications();
 
-  // On mobile the panel is nearly full-width; absolute right-0 on the bell overflows left.
+  // Fixed positioning: absolute under the bell is clipped by the shell's overflow-hidden
+  // (panel slides under the sidebar on tablet/desktop).
   useLayoutEffect(() => {
     if (!open) {
       setPanelStyle(undefined);
@@ -139,21 +140,25 @@ export function AdminNotificationsMenu() {
     function updatePosition() {
       const trigger = containerRef.current;
       if (!trigger) return;
-      const mobile = window.matchMedia('(max-width: 639px)').matches;
-      if (!mobile) {
-        setPanelStyle(undefined);
-        return;
-      }
+
       const rect = trigger.getBoundingClientRect();
       const margin = 16;
-      const top = rect.bottom + 8;
+      const gap = 8;
+      const top = rect.bottom + gap;
+      const viewportWidth = window.innerWidth;
+      const mobile = viewportWidth < 640;
+      const preferredWidth = mobile
+        ? viewportWidth - margin * 2
+        : Math.min(26 * 16, viewportWidth - margin * 2);
+      const maxLeft = viewportWidth - margin - preferredWidth;
+      const left = Math.max(margin, Math.min(rect.right - preferredWidth, maxLeft));
+
       setPanelStyle({
         position: 'fixed',
         top,
-        left: margin,
-        right: margin,
-        width: 'auto',
-        maxWidth: 'none',
+        left,
+        width: preferredWidth,
+        maxWidth: `calc(100vw - ${margin * 2}px)`,
         maxHeight: `calc(100dvh - ${top + margin}px)`,
       });
     }
@@ -238,12 +243,9 @@ export function AdminNotificationsMenu() {
       {open ? (
         <div
           id={menuId}
+          role="menu"
           style={panelStyle}
-          className={cn(
-            'z-50 flex flex-col overflow-hidden rounded-2xl border border-atg-border bg-atg-elevated shadow-2xl',
-            !panelStyle &&
-              'absolute right-0 top-full mt-2 w-[26rem] max-w-[calc(100vw-2rem)]',
-          )}
+          className="fixed z-[60] flex flex-col overflow-hidden rounded-2xl border border-atg-border bg-atg-elevated shadow-2xl"
         >
           {/* Header */}
           <div className="flex shrink-0 items-center justify-between border-b border-atg-border px-4 py-3">
@@ -324,12 +326,7 @@ export function AdminNotificationsMenu() {
           </div>
 
           {/* List */}
-          <div
-            className={cn(
-              'divide-y divide-atg-border/50 overflow-y-auto',
-              panelStyle ? 'min-h-0 flex-1' : 'max-h-[22rem]',
-            )}
-          >
+          <div className="min-h-0 flex-1 divide-y divide-atg-border/50 overflow-y-auto">
             {filteredItems.length === 0 ? (
               <div className="flex flex-col items-center justify-center p-8 text-center">
                 <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-atg-surface text-atg-muted">
