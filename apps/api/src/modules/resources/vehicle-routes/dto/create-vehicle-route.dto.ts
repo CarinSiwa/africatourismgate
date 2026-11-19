@@ -1,6 +1,15 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsInt, IsString, IsUUID, Length, MaxLength, Min } from 'class-validator';
+import {
+  IsBoolean,
+  IsInt,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Length,
+  MaxLength,
+  Min,
+} from 'class-validator';
 
 export class CreateVehicleRouteDto {
   @ApiProperty({ format: 'uuid' })
@@ -27,4 +36,13 @@ export class CreateVehicleRouteDto {
   @IsString()
   @Length(3, 3)
   currency!: string;
+
+  @ApiPropertyOptional({
+    default: true,
+    description:
+      'Visible on the public /cars catalogue. Inactive routes remain usable in packages.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  active?: boolean;
 }

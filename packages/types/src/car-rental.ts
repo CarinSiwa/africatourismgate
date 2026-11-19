@@ -168,8 +168,8 @@ export interface CreateVehicleRouteRequest {
   arrivalCity: string;
   priceCents: number;
   currency: string;
-  /** Defaults to 1 (visible on /cars). */
-  active?: number;
+  /** Defaults to true (visible on /cars). Packages ignore this flag. */
+  active?: boolean;
 }
 
 export type UpdateVehicleRouteRequest = Partial<
@@ -183,4 +183,6 @@ export interface VehicleRoutesListQuery {
   departureCity?: string;
   arrivalCity?: string;
   search?: string;
+  /** Filter by /cars catalogue visibility. */
+  active?: boolean;
 }

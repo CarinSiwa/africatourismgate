@@ -336,6 +336,7 @@ export class BookingPackageCheckoutService {
     routeId: string,
     query: PackageApprovalQuery,
   ): Promise<PackageResolvedLineDto | null> {
+    // Intentionally ignore route.active: packages may sell tronçons hidden from /cars.
     const route = await this.vehicleRoutesRepository.findOne({
       where: { id: routeId },
     });

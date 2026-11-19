@@ -60,6 +60,12 @@ export class VehicleRoutesService extends CrudService<VehicleRoutes> {
       );
     }
 
+    if (query.active !== undefined) {
+      qb.andWhere('route.active = :active', {
+        active: query.active ? 1 : 0,
+      });
+    }
+
     qb.orderBy('route.createdAt', 'DESC')
       .skip((page - 1) * limit)
       .take(limit);
@@ -90,6 +96,7 @@ export class VehicleRoutesService extends CrudService<VehicleRoutes> {
       arrivalCity,
       priceCents: dto.priceCents,
       currency: dto.currency.toUpperCase(),
+      active: dto.active === false ? 0 : 1,
     });
   }
 
@@ -116,6 +123,7 @@ export class VehicleRoutesService extends CrudService<VehicleRoutes> {
       ...(dto.arrivalCity !== undefined ? { arrivalCity } : {}),
       ...(dto.priceCents !== undefined ? { priceCents: dto.priceCents } : {}),
       ...(dto.currency !== undefined ? { currency: dto.currency.toUpperCase() } : {}),
+      ...(dto.active !== undefined ? { active: dto.active ? 1 : 0 } : {}),
     });
   }
 

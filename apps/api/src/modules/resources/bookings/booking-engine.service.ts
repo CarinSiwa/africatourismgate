@@ -1587,7 +1587,7 @@ export class BookingEngineService {
     const route = await this.vehicleRoutesRepository.findOne({
       where: { id: item.routeId },
     });
-    if (!route || route.deletedAt) {
+    if (!route || route.deletedAt || route.active !== 1) {
       throw new NotFoundException('Tronçon introuvable.');
     }
     if (route.vehicleId !== vehicle.id) {

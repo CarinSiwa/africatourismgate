@@ -48,7 +48,7 @@ export class PublicVehiclesService {
     private readonly destinationsRepository: Repository<Destinations>,
   ) {}
 
-  /** Free-text cities that appear as départ or arrivée on active tronçons. */
+  /** Free-text cities that appear as départ or arrivée on catalogue-visible tronçons. */
   async listPickupLocations(): Promise<PublicDestinationDto[]> {
     const routes = await this.vehicleRoutesRepository
       .createQueryBuilder('route')
@@ -58,6 +58,7 @@ export class PublicVehiclesService {
         'v.id = route.vehicleId AND v.deletedAt IS NULL',
       )
       .where('route.deletedAt IS NULL')
+      .andWhere('route.active = 1')
       .getMany();
 
     const names = new Set<string>();
@@ -98,6 +99,7 @@ export class PublicVehiclesService {
       .createQueryBuilder('route')
       .innerJoin(Vehicles, 'vehicle', 'vehicle.id = route.vehicleId')
       .where('route.deletedAt IS NULL')
+      .andWhere('route.active = 1')
       .andWhere('vehicle.deletedAt IS NULL');
 
     if (departureLocation) {
@@ -499,7 +501,12 @@ export class PublicVehiclesService {
       const route = await this.vehicleRoutesRepository.findOne({
         where: { id: query.routeId },
       });
-      if (!route || route.deletedAt || route.vehicleId !== vehicleId) {
+      if (
+        !route ||
+        route.deletedAt ||
+        route.active !== 1 ||
+        route.vehicleId !== vehicleId
+      ) {
         throw new NotFoundException('Tronçon introuvable pour ce véhicule.');
       }
       return route;
@@ -512,6 +519,7 @@ export class PublicVehiclesService {
         .createQueryBuilder('route')
         .where('route.vehicleId = :vehicleId', { vehicleId })
         .andWhere('route.deletedAt IS NULL')
+        .andWhere('route.active = 1')
         .andWhere('LOWER(route.departureCity) = LOWER(:departureCity)', {
           departureCity,
         })
@@ -531,6 +539,7 @@ export class PublicVehiclesService {
       .createQueryBuilder('route')
       .where('route.vehicleId = :vehicleId', { vehicleId })
       .andWhere('route.deletedAt IS NULL')
+      .andWhere('route.active = 1')
       .orderBy('route.priceCents', 'ASC')
       .getOne();
     if (!fallback) {
