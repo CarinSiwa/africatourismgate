@@ -145,6 +145,55 @@ test('buildCheckoutItems maps vehicle to booking payload with slot and route', (
   ]);
 });
 
+const VEHICLE_TRIP_ID = '00000000-0000-4000-8000-000000004025';
+
+test('buildCheckoutItems maps shared vehicle trip with seats and vehicleTripId', () => {
+  const items = buildCheckoutItems({
+    kind: 'vehicle',
+    vehicleId: VEHICLE_ID,
+    availabilitySlotId: VEHICLE_SLOT_ID,
+    routeId: VEHICLE_ROUTE_ID,
+    travelDate: '2026-08-01',
+    vehicleTripId: VEHICLE_TRIP_ID,
+    seats: 2,
+  });
+
+  assert.deepEqual(items, [
+    {
+      itemType: 'vehicle',
+      referenceId: VEHICLE_SLOT_ID,
+      quantity: 2,
+      routeId: VEHICLE_ROUTE_ID,
+      startDate: '2026-08-01',
+      vehicleTripId: VEHICLE_TRIP_ID,
+    },
+  ]);
+});
+
+test('parseReservationDraft parses shared vehicle trip fields', () => {
+  const draft = parseReservationDraft({
+    kind: 'vehicle',
+    vehicleId: VEHICLE_ID,
+    availabilitySlotId: VEHICLE_SLOT_ID,
+    routeId: VEHICLE_ROUTE_ID,
+    travelDate: '2026-08-01',
+    vehicleTripId: VEHICLE_TRIP_ID,
+    seats: '3',
+    departureDatetime: '2026-08-01T09:00:00.000Z',
+  });
+
+  assert.deepEqual(draft, {
+    kind: 'vehicle',
+    vehicleId: VEHICLE_ID,
+    availabilitySlotId: VEHICLE_SLOT_ID,
+    routeId: VEHICLE_ROUTE_ID,
+    travelDate: '2026-08-01',
+    vehicleTripId: VEHICLE_TRIP_ID,
+    seats: 3,
+    departureDatetime: '2026-08-01T09:00:00.000Z',
+  });
+});
+
 test('buildDraftDetailHref links vehicle draft back to car detail', () => {
   assert.equal(
     buildDraftDetailHref({

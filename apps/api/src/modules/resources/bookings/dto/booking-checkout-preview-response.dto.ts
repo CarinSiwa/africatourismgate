@@ -11,6 +11,8 @@ export type BookingCheckoutLineDto = {
   currency: string;
   startDate: string | null;
   endDate: string | null;
+  routeId?: string | null;
+  vehicleTripId?: string | null;
 };
 
 export class AppliedCheckoutDiscountDto {

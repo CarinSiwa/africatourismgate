@@ -1,11 +1,13 @@
 import {
   BadRequestException,
+  Inject,
   Injectable,
   Logger,
   NotFoundException,
+  forwardRef,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DeepPartial, EntityManager, IsNull, Repository } from 'typeorm';
+import { DeepPartial, EntityManager, In, IsNull, Repository } from 'typeorm';
 import { newId } from '../../../common/utils/uuid';
 import {
   Activities,
@@ -22,11 +24,16 @@ import {
   RoomAvailability,
   Rooms,
   VehicleAvailability,
+  VehicleRoutePriceTiers,
   VehicleRoutes,
+  VehicleTrips,
   Users,
   Vehicles,
 } from '../../../entities/generated';
-import { resolveCheckoutBookingMode, computeDepositRequiredCents } from '@africatourismgate/types';
+import {
+  resolveCheckoutBookingMode,
+  computeDepositRequiredCents,
+} from '@africatourismgate/types';
 import { OrgScopeService } from '../../../common/org-scope/org-scope.service';
 import { toAuthUserDto } from '../../auth/dto/auth-user.dto';
 import { BookingDetailPdfService } from '../../email/booking-detail-pdf.service';
@@ -39,10 +46,12 @@ import {
   slotCoversRentalPeriod,
   slotCoversTravelDate,
 } from '../../public/vehicles/vehicle-dates.util';
+import { resolveVehicleRoutePriceCents } from '../../public/vehicles/vehicle-trip-pricing.util';
 import { enumerateDates, addDaysToDateOnly, visitSpanDays } from '../room-availability/room-availability-date.util';
 import { enumerateStayNights } from '../../public/accommodations/stay-dates.util';
 import { OrganizationSettingsService } from '../organization-settings/organization-settings.service';
 import { PackagesService } from '../packages/packages.service';
+import { StripeService } from '../../stripe/stripe.service';
 import {
   BookingCheckoutDto,
   BookingCheckoutItemDto,
@@ -71,8 +80,16 @@ type StockTarget =
   | { kind: 'room'; roomId: string; date: string }
   | { kind: 'flight_class'; flightClassId: string; date: string }
   | { kind: 'vehicle'; availabilityId: string }
+  | { kind: 'vehicle_trip'; tripId: string; bookingId?: string }
   | { kind: 'cabin'; availabilityId: string }
   | { kind: 'activity_schedule'; scheduleId: string };
+
+const ACTIVE_BOOKING_STATUSES_FOR_TRIP_SEATS: Bookings['status'][] = [
+  'draft',
+  'pending_approval',
+  'pending_payment',
+  'confirmed',
+];
 
 type ResolvedBookingLine = BookingCheckoutLineDto & { stock?: StockTarget };
 
@@ -101,6 +118,10 @@ export class BookingEngineService {
     private readonly vehiclesRepository: Repository<Vehicles>,
     @InjectRepository(VehicleRoutes)
     private readonly vehicleRoutesRepository: Repository<VehicleRoutes>,
+    @InjectRepository(VehicleRoutePriceTiers)
+    private readonly vehicleRoutePriceTiersRepository: Repository<VehicleRoutePriceTiers>,
+    @InjectRepository(VehicleTrips)
+    private readonly vehicleTripsRepository: Repository<VehicleTrips>,
     @InjectRepository(CabinAvailability)
     private readonly cabinAvailabilityRepository: Repository<CabinAvailability>,
     @InjectRepository(Cabins)
@@ -126,6 +147,8 @@ export class BookingEngineService {
     private readonly bookingDetailPdf: BookingDetailPdfService,
     private readonly manifestService: BookingManifestService,
     private readonly bookingItemCatalog: BookingItemCatalogService,
+    @Inject(forwardRef(() => StripeService))
+    private readonly stripeService: StripeService,
   ) {}
 
   async previewCheckout(
@@ -194,6 +217,8 @@ export class BookingEngineService {
             bookingId: id,
             itemType: line.itemType,
             referenceId: line.referenceId,
+            vehicleTripId: line.vehicleTripId ?? null,
+            routeId: line.routeId ?? null,
             titleSnapshot: line.titleSnapshot,
             quantity: line.quantity,
             unitPriceCents: line.unitPriceCents,
@@ -311,6 +336,8 @@ export class BookingEngineService {
             bookingId: id,
             itemType: line.itemType,
             referenceId: line.referenceId,
+            vehicleTripId: line.vehicleTripId ?? null,
+            routeId: line.routeId ?? null,
             titleSnapshot: line.titleSnapshot,
             quantity: line.quantity,
             unitPriceCents: line.unitPriceCents,
@@ -782,6 +809,7 @@ export class BookingEngineService {
   ): Promise<BookingDetailDto> {
     const booking = await this.findBookingOrThrow(id);
     if (
+      booking.status !== 'draft' &&
       booking.status !== 'pending_approval' &&
       booking.status !== 'pending_payment' &&
       booking.status !== 'confirmed'
@@ -793,16 +821,24 @@ export class BookingEngineService {
 
     const fromStatus = booking.status;
     const shouldRestoreStock =
-      fromStatus === 'pending_payment' || fromStatus === 'confirmed';
+      fromStatus === 'draft' ||
+      fromStatus === 'pending_payment' ||
+      fromStatus === 'confirmed';
 
     await this.bookingsRepository.manager.transaction(async (manager) => {
+      const items = await manager.getRepository(BookingItems).find({
+        where: { bookingId: id },
+      });
+      const lines = await this.bookingItemsToResolvedLines(manager, items);
       if (shouldRestoreStock) {
-        const items = await manager.getRepository(BookingItems).find({
-          where: { bookingId: id },
-        });
-        const lines = await this.bookingItemsToResolvedLines(manager, items);
         if (lines.length > 0) {
           await this.allocateStock(manager, lines, 'restore', actorUserId);
+        }
+      } else {
+        // Shared trip seats are reserved before assisted approval — release on reject.
+        const tripLines = lines.filter((line) => line.stock?.kind === 'vehicle_trip');
+        if (tripLines.length > 0) {
+          await this.allocateStock(manager, tripLines, 'restore', actorUserId);
         }
       }
 
@@ -1542,6 +1578,10 @@ export class BookingEngineService {
   private async resolveVehicleItem(
     item: BookingCheckoutItemDto,
   ): Promise<ResolvedBookingLine[]> {
+    if (item.vehicleTripId) {
+      return this.resolveSharedVehicleTripItem(item);
+    }
+
     const slot = await this.vehicleAvailabilityRepository.findOne({
       where: { id: item.referenceId },
     });
@@ -1609,7 +1649,108 @@ export class BookingEngineService {
         currency: route.currency,
         startDate: travelDate,
         endDate: item.endDate ?? travelDate,
+        routeId: route.id,
+        vehicleTripId: null,
         stock: { kind: 'vehicle', availabilityId: item.referenceId },
+      },
+    ];
+  }
+
+  private async resolveSharedVehicleTripItem(
+    item: BookingCheckoutItemDto,
+  ): Promise<ResolvedBookingLine[]> {
+    const tripId = item.vehicleTripId!;
+    const trip = await this.vehicleTripsRepository.findOne({
+      where: { id: tripId, deletedAt: IsNull() },
+    });
+    if (!trip) {
+      throw new NotFoundException(`Trajet partagé introuvable : ${tripId}.`);
+    }
+    if (trip.status !== 'open') {
+      throw new BadRequestException('Ce trajet n’accepte plus de réservations.');
+    }
+
+    const rules =
+      await this.organizationSettingsService.getResolvedVehicleSharedTrip();
+    const closesAt = new Date(
+      new Date(trip.departureDatetime).getTime() -
+        rules.paymentCloseHoursBeforeDeparture * 60 * 60 * 1000,
+    );
+    if (Date.now() >= closesAt.getTime()) {
+      throw new BadRequestException(
+        `Les paiements sont clos ${rules.paymentCloseHoursBeforeDeparture} h avant le départ.`,
+      );
+    }
+
+    if (item.quantity < 1) {
+      throw new BadRequestException('La quantité de places doit être au moins 1.');
+    }
+
+    if (item.referenceId !== trip.availabilityId) {
+      throw new BadRequestException(
+        'referenceId doit être le créneau (availability) du trajet partagé.',
+      );
+    }
+    if (item.routeId && item.routeId !== trip.routeId) {
+      throw new BadRequestException(
+        'routeId ne correspond pas au tronçon du trajet partagé.',
+      );
+    }
+
+    const claimed = await this.sumActiveTripSeatClaims(tripId);
+    if (claimed + item.quantity > trip.seatsReserved) {
+      throw new BadRequestException(
+        `Places non réservées sur le trajet (demandées ${item.quantity}, réservées libres ${Math.max(0, trip.seatsReserved - claimed)}). Créez ou rejoignez le trajet avant le checkout.`,
+      );
+    }
+
+    const vehicle = await this.vehiclesRepository.findOne({
+      where: { id: trip.vehicleId },
+    });
+    if (!vehicle || vehicle.deletedAt) {
+      throw new NotFoundException('Véhicule introuvable.');
+    }
+
+    const route = await this.vehicleRoutesRepository.findOne({
+      where: { id: trip.routeId },
+    });
+    if (!route || route.deletedAt) {
+      throw new NotFoundException('Tronçon introuvable.');
+    }
+
+    const tiers = await this.vehicleRoutePriceTiersRepository.find({
+      where: { routeId: route.id, deletedAt: IsNull() },
+      order: { minPassengers: 'ASC', maxPassengers: 'ASC' },
+    });
+    const unitPriceCents = resolveVehicleRoutePriceCents(
+      trip.seatsReserved,
+      tiers,
+      route.priceCents,
+    );
+
+    const travelDate =
+      item.startDate ??
+      item.endDate ??
+      item.date ??
+      new Date(trip.departureDatetime).toISOString().slice(0, 10);
+
+    return [
+      {
+        itemType: 'vehicle',
+        referenceId: trip.availabilityId,
+        quantity: item.quantity,
+        unitPriceCents,
+        lineTotalCents: item.quantity * unitPriceCents,
+        titleSnapshot:
+          `${route.departureCity} → ${route.arrivalCity}`.trim() ||
+          vehicle.licensePlate?.trim() ||
+          `Véhicule ${vehicle.id.slice(0, 8)}`,
+        currency: route.currency,
+        startDate: travelDate,
+        endDate: item.endDate ?? travelDate,
+        routeId: route.id,
+        vehicleTripId: trip.id,
+        stock: { kind: 'vehicle_trip', tripId: trip.id },
       },
     ];
   }
@@ -1799,6 +1940,33 @@ export class BookingEngineService {
         await repo.save(row);
         break;
       }
+      case 'vehicle_trip': {
+        const tripRepo = manager.getRepository(VehicleTrips);
+        const trip = await tripRepo.findOne({
+          where: { id: stock.tripId },
+          lock: { mode: 'pessimistic_write' },
+        });
+        if (!trip || trip.deletedAt) {
+          throw new BadRequestException('Trajet partagé introuvable.');
+        }
+        if (direction === 'decrement') {
+          const claimed = await this.sumActiveTripSeatClaims(
+            stock.tripId,
+            manager,
+          );
+          const additional = stock.bookingId ? 0 : quantity;
+          if (claimed + additional > trip.seatsReserved) {
+            throw new BadRequestException(
+              `Places insuffisantes sur le trajet partagé (${claimed + additional} > ${trip.seatsReserved}).`,
+            );
+          }
+        } else {
+          trip.seatsReserved = Math.max(0, trip.seatsReserved - quantity);
+          trip.updatedByUserId = actorUserId ?? null;
+          await tripRepo.save(trip);
+        }
+        break;
+      }
       case 'cabin': {
         const repo = manager.getRepository(CabinAvailability);
         const row = await repo.findOne({
@@ -1885,10 +2053,25 @@ export class BookingEngineService {
           break;
         }
         case 'vehicle':
-          lines.push({
-            ...base,
-            stock: { kind: 'vehicle', availabilityId: item.referenceId },
-          });
+          if (item.vehicleTripId) {
+            lines.push({
+              ...base,
+              routeId: item.routeId,
+              vehicleTripId: item.vehicleTripId,
+              stock: {
+                kind: 'vehicle_trip',
+                tripId: item.vehicleTripId,
+                bookingId: item.bookingId,
+              },
+            });
+          } else {
+            lines.push({
+              ...base,
+              routeId: item.routeId,
+              vehicleTripId: null,
+              stock: { kind: 'vehicle', availabilityId: item.referenceId },
+            });
+          }
           break;
         case 'cabin':
           lines.push({
@@ -1951,6 +2134,8 @@ export class BookingEngineService {
               bookingId: packageItem.bookingId,
               itemType: resolvedLine.itemType,
               referenceId: resolvedLine.referenceId,
+              vehicleTripId: resolvedLine.vehicleTripId ?? null,
+              routeId: resolvedLine.routeId ?? null,
               titleSnapshot: resolvedLine.titleSnapshot,
               quantity: resolvedLine.quantity,
               unitPriceCents: resolvedLine.unitPriceCents,
@@ -2045,5 +2230,161 @@ export class BookingEngineService {
       throw new NotFoundException('Réservation introuvable.');
     }
     return booking;
+  }
+
+  /**
+   * After a successful payment on a shared-trip booking, reprice all paid seats
+   * for the trip at the current tier(N) and issue Stripe equalization refunds.
+   */
+  async equalizeSharedVehicleTripsForBooking(bookingId: string): Promise<void> {
+    const items = await this.bookingItemsRepository.find({
+      where: { bookingId, deletedAt: IsNull() },
+    });
+    const tripIds = [
+      ...new Set(
+        items
+          .map((item) => item.vehicleTripId)
+          .filter((id): id is string => Boolean(id)),
+      ),
+    ];
+    for (const tripId of tripIds) {
+      try {
+        await this.equalizeSharedVehicleTripPricing(tripId);
+      } catch (err) {
+        this.logger.error(
+          `Equalization failed for trip ${tripId} after booking ${bookingId}: ${
+            err instanceof Error ? err.message : err
+          }`,
+        );
+      }
+    }
+  }
+
+  async equalizeSharedVehicleTripPricing(tripId: string): Promise<void> {
+    const trip = await this.vehicleTripsRepository.findOne({
+      where: { id: tripId, deletedAt: IsNull() },
+    });
+    if (!trip) {
+      return;
+    }
+
+    const route = await this.vehicleRoutesRepository.findOne({
+      where: { id: trip.routeId, deletedAt: IsNull() },
+    });
+    if (!route) {
+      return;
+    }
+
+    const tiers = await this.vehicleRoutePriceTiersRepository.find({
+      where: { routeId: route.id, deletedAt: IsNull() },
+      order: { minPassengers: 'ASC', maxPassengers: 'ASC' },
+    });
+    const newUnitPriceCents = resolveVehicleRoutePriceCents(
+      trip.seatsReserved,
+      tiers,
+      route.priceCents,
+    );
+
+    const tripItems = await this.bookingItemsRepository.find({
+      where: { vehicleTripId: tripId, deletedAt: IsNull() },
+    });
+    if (!tripItems.length) {
+      return;
+    }
+
+    const bookingIds = [...new Set(tripItems.map((item) => item.bookingId))];
+    const bookings = await this.bookingsRepository.find({
+      where: { id: In(bookingIds), deletedAt: IsNull() },
+    });
+    const bookingById = new Map(bookings.map((b) => [b.id, b]));
+
+    const payments = await this.paymentsRepository.find({
+      where: {
+        bookingId: In(bookingIds),
+        status: 'succeeded',
+        provider: 'stripe',
+        deletedAt: IsNull(),
+      },
+      order: { createdAt: 'DESC' },
+    });
+    const paymentByBookingId = new Map<string, Payments>();
+    for (const payment of payments) {
+      if (!paymentByBookingId.has(payment.bookingId)) {
+        paymentByBookingId.set(payment.bookingId, payment);
+      }
+    }
+
+    for (const item of tripItems) {
+      const booking = bookingById.get(item.bookingId);
+      if (!booking) continue;
+      if (
+        booking.status === 'cancelled' ||
+        booking.status === 'refunded' ||
+        booking.status === 'draft' ||
+        booking.status === 'pending_approval'
+      ) {
+        continue;
+      }
+      if (item.unitPriceCents <= newUnitPriceCents) {
+        continue;
+      }
+
+      const deltaPerSeat = item.unitPriceCents - newUnitPriceCents;
+      const refundCents = deltaPerSeat * item.quantity;
+      if (refundCents < 1) {
+        continue;
+      }
+
+      const payment = paymentByBookingId.get(item.bookingId);
+      if (!payment) {
+        continue;
+      }
+
+      await this.stripeService.createEqualizationRefundForPayment(
+        payment.id,
+        refundCents,
+        `equalize-${payment.id}-${item.id}-${newUnitPriceCents}`,
+      );
+
+      item.unitPriceCents = newUnitPriceCents;
+      item.updatedByUserId = item.updatedByUserId ?? null;
+      await this.bookingItemsRepository.save(item);
+
+      booking.totalCents = Math.max(0, booking.totalCents - refundCents);
+      await this.bookingsRepository.save(booking);
+    }
+  }
+
+  private async sumActiveTripSeatClaims(
+    tripId: string,
+    manager?: EntityManager,
+  ): Promise<number> {
+    const itemsRepo = manager
+      ? manager.getRepository(BookingItems)
+      : this.bookingItemsRepository;
+    const bookingsRepo = manager
+      ? manager.getRepository(Bookings)
+      : this.bookingsRepository;
+
+    const items = await itemsRepo.find({
+      where: { vehicleTripId: tripId, deletedAt: IsNull() },
+    });
+    if (!items.length) {
+      return 0;
+    }
+
+    const bookingIds = [...new Set(items.map((item) => item.bookingId))];
+    const bookings = await bookingsRepo.find({
+      where: { id: In(bookingIds), deletedAt: IsNull() },
+    });
+    const activeIds = new Set(
+      bookings
+        .filter((b) => ACTIVE_BOOKING_STATUSES_FOR_TRIP_SEATS.includes(b.status))
+        .map((b) => b.id),
+    );
+
+    return items
+      .filter((item) => activeIds.has(item.bookingId))
+      .reduce((sum, item) => sum + item.quantity, 0);
   }
 }

@@ -1,17 +1,21 @@
 import {
   BadRequestException,
   ForbiddenException,
+  Inject,
   Injectable,
+  Logger,
   NotFoundException,
+  forwardRef,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, IsNull, Repository } from 'typeorm';
+import { In, IsNull, LessThanOrEqual, Repository } from 'typeorm';
 import type { ResolvedVehicleSharedTrip } from '@africatourismgate/types';
 import { PLATFORM_ORG_ID } from '../../../common/org-scope/org-scope.service';
 import { PaginatedResult } from '../../../common/dto/pagination-query.dto';
 import { newId } from '../../../common/utils/uuid';
 import {
   BookingItems,
+  Bookings,
   Payments,
   VehicleAvailability,
   VehicleRoutePriceTiers,
@@ -19,6 +23,7 @@ import {
   VehicleTrips,
   Vehicles,
 } from '../../../entities/generated';
+import { BookingEngineService } from '../../resources/bookings/booking-engine.service';
 import { OrganizationSettingsService } from '../../resources/organization-settings/organization-settings.service';
 import {
   CreateVehicleTripDto,
@@ -30,8 +35,16 @@ import {
 import { dateOnlyFromDatetime, parseDateOnly, slotCoversTravelDate } from './vehicle-dates.util';
 import { resolveVehicleRoutePriceCents } from './vehicle-trip-pricing.util';
 
+const UNPAID_BOOKING_STATUSES: Bookings['status'][] = [
+  'draft',
+  'pending_approval',
+  'pending_payment',
+];
+
 @Injectable()
 export class PublicVehicleTripsService {
+  private readonly logger = new Logger(PublicVehicleTripsService.name);
+
   constructor(
     @InjectRepository(VehicleTrips)
     private readonly tripsRepository: Repository<VehicleTrips>,
@@ -47,7 +60,11 @@ export class PublicVehicleTripsService {
     private readonly bookingItemsRepository: Repository<BookingItems>,
     @InjectRepository(Payments)
     private readonly paymentsRepository: Repository<Payments>,
+    @InjectRepository(Bookings)
+    private readonly bookingsRepository: Repository<Bookings>,
     private readonly organizationSettingsService: OrganizationSettingsService,
+    @Inject(forwardRef(() => BookingEngineService))
+    private readonly bookingEngine: BookingEngineService,
   ) {}
 
   async list(
@@ -258,6 +275,127 @@ export class PublicVehicleTripsService {
       ),
       currency: route.currency,
     };
+  }
+
+  /**
+   * Close open trips past H−N payment window and cancel unpaid seat bookings.
+   * Seats reserved without a paid booking are released.
+   */
+  async closePastPaymentDeadlines(): Promise<{
+    closedTrips: number;
+    cancelledBookings: number;
+  }> {
+    const rules = await this.loadRules();
+    const hours = rules.paymentCloseHoursBeforeDeparture;
+    const horizon = new Date(Date.now() + hours * 60 * 60 * 1000);
+
+    const candidates = await this.tripsRepository.find({
+      where: {
+        status: 'open',
+        deletedAt: IsNull(),
+        departureDatetime: LessThanOrEqual(horizon),
+      },
+      take: 100,
+    });
+
+    let closedTrips = 0;
+    let cancelledBookings = 0;
+
+    for (const trip of candidates) {
+      const closesAt = this.paymentClosesAt(
+        trip.departureDatetime,
+        hours,
+      );
+      if (Date.now() < closesAt.getTime()) {
+        continue;
+      }
+
+      const items = await this.bookingItemsRepository.find({
+        where: { vehicleTripId: trip.id, deletedAt: IsNull() },
+      });
+      const bookingIds = [...new Set(items.map((item) => item.bookingId))];
+
+      if (bookingIds.length > 0) {
+        const bookings = await this.bookingsRepository.find({
+          where: { id: In(bookingIds), deletedAt: IsNull() },
+        });
+        const payments = await this.paymentsRepository.find({
+          where: {
+            bookingId: In(bookingIds),
+            status: 'succeeded',
+            deletedAt: IsNull(),
+          },
+        });
+        const paidBookingIds = new Set(payments.map((p) => p.bookingId));
+
+        for (const booking of bookings) {
+          if (paidBookingIds.has(booking.id)) {
+            continue;
+          }
+          if (!UNPAID_BOOKING_STATUSES.includes(booking.status)) {
+            continue;
+          }
+          try {
+            await this.bookingEngine.cancelBooking(
+              booking.id,
+              undefined,
+              `Clôture paiement H−${hours} trajet partagé`,
+            );
+            cancelledBookings += 1;
+          } catch (err) {
+            this.logger.warn(
+              `Failed to cancel unpaid booking ${booking.id} for trip ${trip.id}: ${
+                err instanceof Error ? err.message : err
+              }`,
+            );
+          }
+        }
+      }
+
+      const paidSeats = await this.sumPaidTripSeats(trip.id);
+      trip.status = 'payment_closed';
+      trip.seatsReserved = paidSeats;
+      await this.tripsRepository.save(trip);
+      closedTrips += 1;
+      this.logger.log(
+        `Trip ${trip.id} payment_closed (paid seats=${paidSeats})`,
+      );
+    }
+
+    return { closedTrips, cancelledBookings };
+  }
+
+  private async sumPaidTripSeats(tripId: string): Promise<number> {
+    const items = await this.bookingItemsRepository.find({
+      where: { vehicleTripId: tripId, deletedAt: IsNull() },
+    });
+    if (!items.length) {
+      return 0;
+    }
+    const bookingIds = [...new Set(items.map((item) => item.bookingId))];
+    const payments = await this.paymentsRepository.find({
+      where: {
+        bookingId: In(bookingIds),
+        status: 'succeeded',
+        deletedAt: IsNull(),
+      },
+    });
+    const paidBookingIds = new Set(payments.map((p) => p.bookingId));
+    const bookings = await this.bookingsRepository.find({
+      where: { id: In(bookingIds), deletedAt: IsNull() },
+    });
+    const activePaid = new Set(
+      bookings
+        .filter(
+          (b) =>
+            paidBookingIds.has(b.id) &&
+            (b.status === 'confirmed' || b.status === 'pending_payment'),
+        )
+        .map((b) => b.id),
+    );
+    return items
+      .filter((item) => activePaid.has(item.bookingId))
+      .reduce((sum, item) => sum + item.quantity, 0);
   }
 
   private async toDtos(

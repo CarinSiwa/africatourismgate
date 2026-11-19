@@ -5,6 +5,11 @@ import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { getVehicleDetail } from '../../lib/api/public';
 import {
+  createPublicVehicleTrip,
+  joinPublicVehicleTrip,
+} from '../../lib/api/vehicle-trips';
+import { ensureClientAccessToken } from '../../lib/auth/client-session';
+import {
   buildCarDetailHref,
   toVehicleDetailQuery,
   type CarDetailSearchParams,
@@ -20,7 +25,11 @@ import { HomeHeader } from '../home/home-header';
 import { DetailPageSkeletonShell } from '../shared/loading-skeletons';
 import { scrollToBookingSidebar } from '../shared/booking-sidebar-shell';
 import { ProductGallery } from '../shared';
-import { CarBookingMobileBar, CarBookingSidebar } from './car-booking-sidebar';
+import {
+  CarBookingMobileBar,
+  CarBookingSidebar,
+  type CarReservePayload,
+} from './car-booking-sidebar';
 import { CarConditionsSection } from './car-conditions-section';
 import { CarEquipmentSection } from './car-equipment-section';
 import { CarHeroMedia } from './car-hero-media';
@@ -50,6 +59,8 @@ export function CarDetailPageContent({
 
   const [travelDate, setTravelDate] = useState(initialSearch.travelDate ?? '');
   const [routeId, setRouteId] = useState(initialSearch.routeId ?? '');
+  const [reserving, setReserving] = useState(false);
+  const [reserveError, setReserveError] = useState<string | null>(null);
 
   const searchContext: CarDetailSearchParams = {
     routeId: routeId || undefined,
@@ -123,21 +134,55 @@ export function CarDetailPageContent({
     syncUrl({ travelDate: value || undefined });
   }
 
-  function handleReserve() {
+  async function handleReserve(payload: CarReservePayload) {
     if (!travelDate) {
       scrollToBookingSidebar({ openDrawer: true });
       return;
     }
-    if (!detail?.availabilitySlot?.id || !detail.route?.id) return;
+    if (!detail?.route?.id) return;
 
-    const query = buildReservationQuery({
-      kind: 'vehicle',
-      vehicleId,
-      availabilitySlotId: detail.availabilitySlot.id,
-      routeId: detail.route.id,
-      travelDate,
-    });
-    router.push(`/booking/cart?${query}`);
+    setReserveError(null);
+    const token = await ensureClientAccessToken();
+    if (!token) {
+      const next = encodeURIComponent(
+        typeof window !== 'undefined'
+          ? `${window.location.pathname}${window.location.search}`
+          : buildCarDetailHref(vehicleId, searchContext),
+      );
+      router.push(`/booking/login?next=${next}`);
+      return;
+    }
+
+    setReserving(true);
+    try {
+      const trip =
+        payload.mode === 'join'
+          ? await joinPublicVehicleTrip(token, payload.tripId, {
+              seats: payload.seats,
+            })
+          : await createPublicVehicleTrip(token, {
+              vehicleId,
+              routeId: detail.route.id,
+              departureDatetime: payload.departureDatetime,
+              seats: payload.seats,
+            });
+
+      const query = buildReservationQuery({
+        kind: 'vehicle',
+        vehicleId,
+        availabilitySlotId: trip.availabilityId,
+        routeId: trip.routeId,
+        travelDate,
+        vehicleTripId: trip.id,
+        seats: payload.seats,
+        departureDatetime: trip.departureDatetime,
+      });
+      router.push(`/booking/cart?${query}`);
+    } catch {
+      setReserveError(c.reserveTripError);
+    } finally {
+      setReserving(false);
+    }
   }
 
   // Retour liste sans filtres : la fiche porte les params de trajet, pas la recherche.
@@ -149,6 +194,8 @@ export function CarDetailPageContent({
         travelDate,
         onTravelDateChange: handleTravelDateChange,
         onReserve: handleReserve,
+        reserving,
+        reserveError,
         t: c,
         locale,
       }
