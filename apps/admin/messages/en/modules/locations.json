@@ -87,17 +87,23 @@
       "newRoute": "New route",
       "editRoute": "Edit route",
       "formHint": "Enter departure, arrival, and the fixed trip price.",
-      "editFormHint": "Update this route’s trip or price.",
+      "editFormHint": "Update this route’s trip, price, or website visibility.",
       "departure": "Departure city",
       "arrival": "Arrival city",
       "priceCents": "Price (cents)",
+      "activeLabel": "Show on website",
+      "activeHint": "Visible in the Cars catalogue (/cars). A hidden route can still be used in packages.",
+      "statusVisible": "Visible",
+      "statusHidden": "Hidden",
+      "toggleActiveAria": "Show or hide this route on the website",
       "empty": "No routes for this vehicle.",
       "minPriceHint": "from",
       "unpriced": "Not priced",
       "count": "{count, plural, =0 {No routes} one {# route} other {# routes}}",
       "columns": {
         "route": "Trip",
-        "price": "Price"
+        "price": "Price",
+        "visibility": "Website"
       },
       "validation": {
         "departureRequired": "Departure city is required.",

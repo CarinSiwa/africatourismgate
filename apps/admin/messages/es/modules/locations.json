@@ -87,17 +87,23 @@
       "newRoute": "Nuevo tramo",
       "editRoute": "Editar tramo",
       "formHint": "Escriba la salida, la llegada y el precio fijo del trayecto.",
-      "editFormHint": "Modifique el trayecto o el precio de este tramo.",
+      "editFormHint": "Modifique el trayecto, el precio o la visibilidad en el sitio.",
       "departure": "Ciudad de salida",
       "arrival": "Ciudad de llegada",
       "priceCents": "Precio (céntimos)",
+      "activeLabel": "Mostrar en el sitio web",
+      "activeHint": "Visible en el catálogo de coches (/cars). Un tramo oculto sigue disponible en los paquetes.",
+      "statusVisible": "Visible",
+      "statusHidden": "Oculto",
+      "toggleActiveAria": "Mostrar u ocultar este tramo en el sitio web",
       "empty": "Ningún tramo para este vehículo.",
       "minPriceHint": "desde",
       "unpriced": "Sin tarifa",
       "count": "{count, plural, =0 {Ningún tramo} one {# tramo} other {# tramos}}",
       "columns": {
         "route": "Trayecto",
-        "price": "Precio"
+        "price": "Precio",
+        "visibility": "Sitio web"
       },
       "validation": {
         "departureRequired": "La ciudad de salida es obligatoria.",

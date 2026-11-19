@@ -9,9 +9,11 @@ import {
   DataTable,
   DataTableActionButton,
   DataTableActions,
+  DataTableBadge,
   Input,
   Modal,
   Select,
+  Switch,
   type ColumnDef,
 } from '@africatourismgate/ui';
 import type { VehicleRoute } from '@africatourismgate/types';
@@ -27,6 +29,7 @@ type FormValues = {
   arrivalCity: string;
   priceCents: string;
   currency: string;
+  active: boolean;
 };
 
 const emptyForm: FormValues = {
@@ -34,7 +37,12 @@ const emptyForm: FormValues = {
   arrivalCity: '',
   priceCents: '',
   currency: FALLBACK_TREASURY_CURRENCY,
+  active: true,
 };
+
+function isRouteActive(route: VehicleRoute): boolean {
+  return route.active !== 0;
+}
 
 type VehicleRoutesSectionProps = {
   vehicleId: string;
@@ -71,6 +79,7 @@ export function VehicleRoutesSection({
   >({});
   const [submitting, setSubmitting] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
   const [confirmTarget, setConfirmTarget] = useState<VehicleRoute | null>(null);
 
   const { options: currencyOptions } = useActiveCurrencies({
@@ -118,6 +127,7 @@ export function VehicleRoutesSection({
       arrivalCity: route.arrivalCity,
       priceCents: String(route.priceCents),
       currency: route.currency,
+      active: isRouteActive(route),
     });
     setShowForm(true);
     setFormError(null);
@@ -169,6 +179,7 @@ export function VehicleRoutesSection({
           arrivalCity,
           priceCents,
           currency,
+          active: formValues.active,
         });
       } else {
         await client.createVehicleRoute({
@@ -177,6 +188,7 @@ export function VehicleRoutesSection({
           arrivalCity,
           priceCents,
           currency,
+          active: formValues.active,
         });
       }
       resetForm();
@@ -209,6 +221,24 @@ export function VehicleRoutesSection({
     return `${route.departureCity} → ${route.arrivalCity}`;
   }
 
+  const handleToggleActive = useCallback(
+    async (route: VehicleRoute) => {
+      const nextActive = !isRouteActive(route);
+      setTogglingId(route.id);
+      setFormError(null);
+      try {
+        await getApiClient().updateVehicleRoute(route.id, { active: nextActive });
+        await load();
+        onChanged?.();
+      } catch (error) {
+        setFormError(getLocationsErrorMessage(error));
+      } finally {
+        setTogglingId(null);
+      }
+    },
+    [getLocationsErrorMessage, load, onChanged],
+  );
+
   const columns = useMemo<ColumnDef<VehicleRoute>[]>(
     () => [
       {
@@ -227,6 +257,28 @@ export function VehicleRoutesSection({
             {formatPrice(row.original.priceCents, row.original.currency)}
           </span>
         ),
+      },
+      {
+        id: 'visibility',
+        header: t('columns.visibility'),
+        cell: ({ row }) => {
+          const active = isRouteActive(row.original);
+          return (
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <DataTableBadge variant={active ? 'success' : 'muted'}>
+                {active ? t('statusVisible') : t('statusHidden')}
+              </DataTableBadge>
+              <Switch
+                checked={active}
+                disabled={togglingId === row.original.id}
+                onChange={() => {
+                  void handleToggleActive(row.original);
+                }}
+                aria-label={t('toggleActiveAria')}
+              />
+            </div>
+          );
+        },
       },
       {
         id: 'actions',
@@ -248,7 +300,7 @@ export function VehicleRoutesSection({
         ),
       },
     ],
-    [deletingId, formatPrice, t, tCommon],
+    [deletingId, formatPrice, handleToggleActive, t, tCommon, togglingId],
   );
 
   const routes = state.status === 'ready' ? state.routes : [];
@@ -343,6 +395,20 @@ export function VehicleRoutesSection({
                 setFormValues((prev) => ({ ...prev, currency: e.target.value }))
               }
               error={fieldErrors.currency}
+            />
+          </div>
+          <div className="flex items-start justify-between gap-4 rounded-xl border border-atg-border bg-atg-surface/50 px-4 py-3">
+            <div className="min-w-0 space-y-1">
+              <p className="text-sm font-medium text-atg-fg">{t('activeLabel')}</p>
+              <p className="text-xs leading-relaxed text-atg-muted">{t('activeHint')}</p>
+            </div>
+            <Switch
+              checked={formValues.active}
+              onChange={(e) =>
+                setFormValues((prev) => ({ ...prev, active: e.target.checked }))
+              }
+              disabled={submitting}
+              aria-label={t('activeLabel')}
             />
           </div>
           <div className="flex flex-wrap gap-2 pt-2">
