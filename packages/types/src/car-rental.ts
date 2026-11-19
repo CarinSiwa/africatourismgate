@@ -54,6 +54,8 @@ export interface Vehicle {
   categoryId: string;
   licensePlate: string | null;
   currency: string;
+  /** Max seats for shared trips (/cars). */
+  maxPassengers: number;
   /** NULL = catalogue partagé (toutes orgs). */
   organizationId: string | null;
   createdAt: string;
@@ -65,6 +67,8 @@ export interface CreateVehicleRequest {
   categoryId: string;
   licensePlate?: string;
   currency: string;
+  /** Defaults to 4. */
+  maxPassengers?: number;
   organizationId?: string | null;
 }
 
@@ -151,9 +155,42 @@ export interface VehicleRouteOption {
 }
 
 /**
+ * Per-person price for a passenger-count band on a tronçon.
+ * Example: min=2, max=4, priceCents=7000 → 70.00 per person when N∈[2,4].
+ */
+export interface VehicleRoutePriceTier {
+  id: string;
+  routeId: string;
+  minPassengers: number;
+  maxPassengers: number;
+  priceCents: number;
+  createdAt: string;
+  updatedAt: string | null;
+}
+
+export interface VehicleRoutePriceTierInput {
+  minPassengers: number;
+  maxPassengers: number;
+  priceCents: number;
+}
+
+export interface CreateVehicleRoutePriceTierRequest extends VehicleRoutePriceTierInput {
+  routeId: string;
+}
+
+export type UpdateVehicleRoutePriceTierRequest = Partial<VehicleRoutePriceTierInput>;
+
+export interface VehicleRoutePriceTiersListQuery {
+  page?: number;
+  limit?: number;
+  routeId?: string;
+}
+
+/**
  * Tronçon tarifé : ville départ → ville arrivée (texte libre) pour un véhicule.
  * `active` gates the public /cars catalogue only — inactive routes remain
  * selectable in package products (`item_type: 'troncon'`).
+ * `priceCents` remains the legacy / package fallback (often the 1-person tier).
  */
 export interface VehicleRoute {
   id: string;
@@ -164,6 +201,8 @@ export interface VehicleRoute {
   currency: string;
   /** 1 = visible on /cars; 0 = hidden from /cars (packages still OK). */
   active: number;
+  /** Present when the API loads tiers with the route. */
+  priceTiers?: VehicleRoutePriceTier[];
   createdAt: string;
   updatedAt: string | null;
 }
@@ -176,6 +215,8 @@ export interface CreateVehicleRouteRequest {
   currency: string;
   /** Defaults to true (visible on /cars). Packages ignore this flag. */
   active?: boolean;
+  /** When omitted on create, a 1–1 tier is seeded from `priceCents`. */
+  priceTiers?: VehicleRoutePriceTierInput[];
 }
 
 export type UpdateVehicleRouteRequest = Partial<
@@ -191,4 +232,6 @@ export interface VehicleRoutesListQuery {
   search?: string;
   /** Filter by /cars catalogue visibility. */
   active?: boolean;
+  /** When true, each route includes `priceTiers`. */
+  includePriceTiers?: boolean;
 }

@@ -32,6 +32,7 @@ import type {
   VehicleAvailabilityListQuery,
   VehicleCategoriesListQuery,
   VehicleImagesListQuery,
+  VehicleRoutePriceTiersListQuery,
   VehicleRoutesListQuery,
   VehiclesListQuery,
   GapSiteSettingsListQuery,
@@ -77,8 +78,11 @@ const RESOURCE_QUERY_KEYS = [
   'rating',
   'roomId',
   'vehicleId',
+  'routeId',
   'departureCity',
   'arrivalCity',
+  'active',
+  'includePriceTiers',
   'startFrom',
   'endTo',
   'flightClassId',
@@ -134,6 +138,7 @@ export type PaginatedListQuery =
   | VehicleCategoriesListQuery
   | VehiclesListQuery
   | VehicleImagesListQuery
+  | VehicleRoutePriceTiersListQuery
   | VehicleRoutesListQuery
   | ActivityImagesListQuery
   | ActivityItineraryStopsListQuery

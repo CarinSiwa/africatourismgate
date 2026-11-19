@@ -16,7 +16,10 @@ import {
   Switch,
   type ColumnDef,
 } from '@africatourismgate/ui';
-import type { VehicleRoute } from '@africatourismgate/types';
+import type {
+  VehicleRoute,
+  VehicleRoutePriceTierInput,
+} from '@africatourismgate/types';
 import { useTranslations } from 'next-intl';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { getApiClient } from '../../lib/auth/api';
@@ -24,13 +27,34 @@ import { FALLBACK_TREASURY_CURRENCY } from '../../lib/treasury/currency-options'
 import { useActiveCurrencies } from '../../lib/treasury/use-active-currencies';
 import { useFormatMoney } from '../../lib/use-format-money';
 
+type TierFormRow = {
+  key: string;
+  minPassengers: string;
+  maxPassengers: string;
+  priceCents: string;
+};
+
 type FormValues = {
   departureCity: string;
   arrivalCity: string;
   priceCents: string;
   currency: string;
   active: boolean;
+  tiers: TierFormRow[];
 };
+
+function newTierKey(): string {
+  return `tier-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function defaultTier(priceCents = ''): TierFormRow {
+  return {
+    key: newTierKey(),
+    minPassengers: '1',
+    maxPassengers: '1',
+    priceCents,
+  };
+}
 
 const emptyForm: FormValues = {
   departureCity: '',
@@ -38,10 +62,48 @@ const emptyForm: FormValues = {
   priceCents: '',
   currency: FALLBACK_TREASURY_CURRENCY,
   active: true,
+  tiers: [defaultTier()],
 };
 
 function isRouteActive(route: VehicleRoute): boolean {
   return route.active !== 0;
+}
+
+function parseTiers(
+  rows: TierFormRow[],
+): { ok: true; tiers: VehicleRoutePriceTierInput[] } | { ok: false; error: string } {
+  if (!rows.length) {
+    return { ok: false, error: 'tierRequired' };
+  }
+  const tiers: VehicleRoutePriceTierInput[] = [];
+  for (const row of rows) {
+    const minPassengers = Number.parseInt(row.minPassengers, 10);
+    const maxPassengers = Number.parseInt(row.maxPassengers, 10);
+    const priceCents = Number(row.priceCents);
+    if (
+      !Number.isFinite(minPassengers) ||
+      !Number.isFinite(maxPassengers) ||
+      !Number.isFinite(priceCents) ||
+      minPassengers < 1 ||
+      maxPassengers < 1 ||
+      minPassengers > maxPassengers ||
+      priceCents < 0
+    ) {
+      return { ok: false, error: 'tierRangeInvalid' };
+    }
+    tiers.push({ minPassengers, maxPassengers, priceCents });
+  }
+  const sorted = [...tiers].sort((a, b) => a.minPassengers - b.minPassengers);
+  for (let i = 0; i < sorted.length; i += 1) {
+    for (let j = i + 1; j < sorted.length; j += 1) {
+      const a = sorted[i];
+      const b = sorted[j];
+      if (a.minPassengers <= b.maxPassengers && b.minPassengers <= a.maxPassengers) {
+        return { ok: false, error: 'tierOverlap' };
+      }
+    }
+  }
+  return { ok: true, tiers };
 }
 
 type VehicleRoutesSectionProps = {
@@ -75,7 +137,7 @@ export function VehicleRoutesSection({
   const [formValues, setFormValues] = useState<FormValues>(emptyForm);
   const [formError, setFormError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<
-    Partial<Record<keyof FormValues, string>>
+    Partial<Record<'departureCity' | 'arrivalCity' | 'priceCents' | 'currency' | 'tiers', string>>
   >({});
   const [submitting, setSubmitting] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -93,6 +155,7 @@ export function VehicleRoutesSection({
         vehicleId,
         page: 1,
         limit: 100,
+        includePriceTiers: true,
       });
       setState({ status: 'ready', routes: routesResult.data });
     } catch (error) {
@@ -108,6 +171,7 @@ export function VehicleRoutesSection({
     setFormValues({
       ...emptyForm,
       currency: (defaultCurrency ?? FALLBACK_TREASURY_CURRENCY).toUpperCase(),
+      tiers: [defaultTier()],
     });
     setEditing(null);
     setShowForm(false);
@@ -122,12 +186,22 @@ export function VehicleRoutesSection({
 
   function openEdit(route: VehicleRoute) {
     setEditing(route);
+    const tiers =
+      route.priceTiers && route.priceTiers.length > 0
+        ? route.priceTiers.map((tier) => ({
+            key: tier.id,
+            minPassengers: String(tier.minPassengers),
+            maxPassengers: String(tier.maxPassengers),
+            priceCents: String(tier.priceCents),
+          }))
+        : [defaultTier(String(route.priceCents))];
     setFormValues({
       departureCity: route.departureCity,
       arrivalCity: route.arrivalCity,
       priceCents: String(route.priceCents),
       currency: route.currency,
       active: isRouteActive(route),
+      tiers,
     });
     setShowForm(true);
     setFormError(null);
@@ -135,7 +209,9 @@ export function VehicleRoutesSection({
   }
 
   function validate(): boolean {
-    const errors: Partial<Record<keyof FormValues, string>> = {};
+    const errors: Partial<
+      Record<'departureCity' | 'arrivalCity' | 'priceCents' | 'currency' | 'tiers', string>
+    > = {};
     if (!formValues.departureCity.trim()) {
       errors.departureCity = t('validation.departureRequired');
     }
@@ -157,6 +233,10 @@ export function VehicleRoutesSection({
     if (formValues.currency.trim().length !== 3) {
       errors.currency = tCommon('validation.currencyThreeLettersExample');
     }
+    const tiersResult = parseTiers(formValues.tiers);
+    if (!tiersResult.ok) {
+      errors.tiers = t(`validation.${tiersResult.error}`);
+    }
     setFieldErrors(errors);
     return Object.keys(errors).length === 0;
   }
@@ -166,6 +246,9 @@ export function VehicleRoutesSection({
     setFormError(null);
     if (!validate()) return;
 
+    const tiersResult = parseTiers(formValues.tiers);
+    if (!tiersResult.ok) return;
+
     setSubmitting(true);
     try {
       const client = getApiClient();
@@ -173,22 +256,20 @@ export function VehicleRoutesSection({
       const currency = formValues.currency.trim().toUpperCase();
       const departureCity = formValues.departureCity.trim();
       const arrivalCity = formValues.arrivalCity.trim();
+      const payload = {
+        departureCity,
+        arrivalCity,
+        priceCents,
+        currency,
+        active: formValues.active,
+        priceTiers: tiersResult.tiers,
+      };
       if (editing) {
-        await client.updateVehicleRoute(editing.id, {
-          departureCity,
-          arrivalCity,
-          priceCents,
-          currency,
-          active: formValues.active,
-        });
+        await client.updateVehicleRoute(editing.id, payload);
       } else {
         await client.createVehicleRoute({
           vehicleId,
-          departureCity,
-          arrivalCity,
-          priceCents,
-          currency,
-          active: formValues.active,
+          ...payload,
         });
       }
       resetForm();
@@ -255,6 +336,15 @@ export function VehicleRoutesSection({
         cell: ({ row }) => (
           <span className="tabular-nums text-sm">
             {formatPrice(row.original.priceCents, row.original.currency)}
+          </span>
+        ),
+      },
+      {
+        id: 'tiers',
+        header: t('columns.tiers'),
+        cell: ({ row }) => (
+          <span className="text-sm text-atg-muted">
+            {t('tiersCount', { count: row.original.priceTiers?.length ?? 0 })}
           </span>
         ),
       },
@@ -344,7 +434,7 @@ export function VehicleRoutesSection({
         title={editing ? t('editRoute') : t('newRoute')}
         showClose
         closeAriaLabel={tActions('close')}
-        className="max-w-lg"
+        className="max-w-2xl"
       >
         <form onSubmit={handleSubmit} className="space-y-4">
           <p className="text-xs text-atg-muted">
@@ -385,6 +475,7 @@ export function VehicleRoutesSection({
                 setFormValues((prev) => ({ ...prev, priceCents: e.target.value }))
               }
               error={fieldErrors.priceCents}
+              hint={t('priceCentsHint')}
               required
             />
             <Select
@@ -397,6 +488,107 @@ export function VehicleRoutesSection({
               error={fieldErrors.currency}
             />
           </div>
+
+          <div className="space-y-3 rounded-xl border border-atg-border bg-atg-surface/40 p-3">
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <div>
+                <p className="text-sm font-medium text-atg-fg">{t('tiersTitle')}</p>
+                <p className="text-xs text-atg-muted">{t('tiersIntro')}</p>
+              </div>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() =>
+                  setFormValues((prev) => ({
+                    ...prev,
+                    tiers: [
+                      ...prev.tiers,
+                      defaultTier(prev.priceCents || prev.tiers.at(-1)?.priceCents || ''),
+                    ],
+                  }))
+                }
+              >
+                {t('addTier')}
+              </Button>
+            </div>
+            {fieldErrors.tiers ? (
+              <p role="alert" className="text-sm text-red-600 dark:text-red-400">
+                {fieldErrors.tiers}
+              </p>
+            ) : null}
+            <div className="space-y-3">
+              {formValues.tiers.map((tier, index) => (
+                <div
+                  key={tier.key}
+                  className="grid gap-2 rounded-lg border border-atg-border/70 bg-atg-surface p-3 sm:grid-cols-[1fr_1fr_1.4fr_auto]"
+                >
+                  <Input
+                    label={t('tierMin')}
+                    type="number"
+                    min={1}
+                    value={tier.minPassengers}
+                    onChange={(e) =>
+                      setFormValues((prev) => ({
+                        ...prev,
+                        tiers: prev.tiers.map((row, i) =>
+                          i === index ? { ...row, minPassengers: e.target.value } : row,
+                        ),
+                      }))
+                    }
+                    required
+                  />
+                  <Input
+                    label={t('tierMax')}
+                    type="number"
+                    min={1}
+                    value={tier.maxPassengers}
+                    onChange={(e) =>
+                      setFormValues((prev) => ({
+                        ...prev,
+                        tiers: prev.tiers.map((row, i) =>
+                          i === index ? { ...row, maxPassengers: e.target.value } : row,
+                        ),
+                      }))
+                    }
+                    required
+                  />
+                  <Input
+                    label={t('tierPrice')}
+                    type="number"
+                    min={0}
+                    value={tier.priceCents}
+                    onChange={(e) =>
+                      setFormValues((prev) => ({
+                        ...prev,
+                        tiers: prev.tiers.map((row, i) =>
+                          i === index ? { ...row, priceCents: e.target.value } : row,
+                        ),
+                      }))
+                    }
+                    required
+                  />
+                  <div className="flex items-end">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={formValues.tiers.length <= 1}
+                      onClick={() =>
+                        setFormValues((prev) => ({
+                          ...prev,
+                          tiers: prev.tiers.filter((_, i) => i !== index),
+                        }))
+                      }
+                    >
+                      {t('removeTier')}
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
           <div className="flex items-start justify-between gap-4 rounded-xl border border-atg-border bg-atg-surface/50 px-4 py-3">
             <div className="min-w-0 space-y-1">
               <p className="text-sm font-medium text-atg-fg">{t('activeLabel')}</p>

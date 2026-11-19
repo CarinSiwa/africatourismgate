@@ -22,6 +22,7 @@ export type VehicleFormValues = {
   categoryId: string;
   licensePlate: string;
   currency: string;
+  maxPassengers: string;
 };
 
 const defaultValues: VehicleFormValues = {
@@ -29,6 +30,7 @@ const defaultValues: VehicleFormValues = {
   categoryId: '',
   licensePlate: '',
   currency: FALLBACK_TREASURY_CURRENCY,
+  maxPassengers: '4',
 };
 
 function vehicleToFormValues(vehicle: Vehicle): VehicleFormValues {
@@ -37,14 +39,17 @@ function vehicleToFormValues(vehicle: Vehicle): VehicleFormValues {
     categoryId: vehicle.categoryId,
     licensePlate: vehicle.licensePlate ?? '',
     currency: vehicle.currency,
+    maxPassengers: String(vehicle.maxPassengers ?? 4),
   };
 }
 
 function toPayload(values: VehicleFormValues): CreateVehicleRequest {
+  const maxPassengers = Number.parseInt(values.maxPassengers, 10);
   return {
     agencyId: values.agencyId,
     categoryId: values.categoryId,
     currency: values.currency.trim().toUpperCase(),
+    maxPassengers: Number.isFinite(maxPassengers) ? maxPassengers : 4,
     ...(values.licensePlate.trim()
       ? { licensePlate: values.licensePlate.trim().toUpperCase() }
       : {}),
@@ -139,6 +144,10 @@ export function VehicleForm({
     if (values.currency.trim().length !== 3) {
       errors.currency = tCommon('validation.currencyThreeLettersExample');
     }
+    const maxPassengers = Number.parseInt(values.maxPassengers, 10);
+    if (!Number.isFinite(maxPassengers) || maxPassengers < 1 || maxPassengers > 50) {
+      errors.maxPassengers = t('validation.maxPassengersInvalid');
+    }
     setFieldErrors(errors);
     return Object.keys(errors).length === 0;
   }
@@ -213,6 +222,18 @@ export function VehicleForm({
         }}
         error={fieldErrors.currency}
         hint={t('currencyHint')}
+      />
+
+      <Input
+        label={t('maxPassengers')}
+        type="number"
+        min={1}
+        max={50}
+        value={values.maxPassengers}
+        onChange={(e) => updateField('maxPassengers', e.target.value)}
+        error={fieldErrors.maxPassengers}
+        hint={t('maxPassengersHint')}
+        required
       />
     </div>
   );

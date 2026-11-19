@@ -37,9 +37,12 @@
     "licensePlate": "License plate",
     "dailyPriceCents": "Daily price (cents)",
     "currencyHint": "Default vehicle currency; prices are set per route segment.",
+    "maxPassengers": "Max capacity (seats)",
+    "maxPassengersHint": "Maximum passengers for shared trips on /cars.",
     "validation": {
       "agencyRequired": "Agency is required.",
-      "categoryRequired": "Category is required."
+      "categoryRequired": "Category is required.",
+      "maxPassengersInvalid": "Capacity must be between 1 and 50 seats."
     }
   },
   "view": {
@@ -82,15 +85,23 @@
   "sections": {
     "routes": {
       "title": "Route segments",
-      "intro": "Fixed fares by trip (departure city → arrival city, free text).",
+      "intro": "Priced trips (departure city → arrival city) with a fare grid by passenger count.",
       "addRoute": "Add route",
       "newRoute": "New route",
       "editRoute": "Edit route",
-      "formHint": "Enter departure, arrival, and the fixed trip price.",
-      "editFormHint": "Update this route’s trip, price, or website visibility.",
+      "formHint": "Enter departure, arrival, reference price, and the per-person fare grid.",
+      "editFormHint": "Update this route’s trip, fare grid, or website visibility.",
       "departure": "Departure city",
       "arrival": "Arrival city",
-      "priceCents": "Price (cents)",
+      "priceCents": "Reference price (cents)",
+      "priceCentsHint": "Package fallback / 1-person tier. The grid below applies to shared trips.",
+      "tiersTitle": "Fare grid (per person)",
+      "tiersIntro": "Each band covers a non-overlapping passenger range (e.g. 1–1, 2–4).",
+      "tierMin": "Min pax",
+      "tierMax": "Max pax",
+      "tierPrice": "Price / person (cents)",
+      "addTier": "Add band",
+      "removeTier": "Remove",
       "activeLabel": "Show on website",
       "activeHint": "Visible in the Cars catalogue (/cars). A hidden route can still be used in packages.",
       "statusVisible": "Visible",
@@ -99,16 +110,21 @@
       "empty": "No routes for this vehicle.",
       "minPriceHint": "from",
       "unpriced": "Not priced",
+      "tiersCount": "{count, plural, =0 {No bands} one {# band} other {# bands}}",
       "count": "{count, plural, =0 {No routes} one {# route} other {# routes}}",
       "columns": {
         "route": "Trip",
-        "price": "Price",
+        "price": "Ref. price",
+        "tiers": "Bands",
         "visibility": "Website"
       },
       "validation": {
         "departureRequired": "Departure city is required.",
         "arrivalRequired": "Arrival city is required.",
-        "sameDestination": "Departure and arrival must be different."
+        "sameDestination": "Departure and arrival must be different.",
+        "tierRequired": "At least one fare band is required.",
+        "tierRangeInvalid": "Each band needs min ≤ max and price ≥ 0.",
+        "tierOverlap": "Fare bands must not overlap."
       },
       "deleteTitle": "Delete route",
       "deleteConfirm": "Delete route “{label}”?"

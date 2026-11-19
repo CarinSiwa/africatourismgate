@@ -50,4 +50,12 @@ export class VehicleRoutesListQueryDto extends PaginationQueryDto {
   @Transform(({ value }) => parseBooleanQuery(value))
   @IsBoolean()
   active?: boolean;
+
+  @ApiPropertyOptional({
+    description: 'When true, each route includes nested priceTiers',
+  })
+  @IsOptional()
+  @Transform(({ value }) => parseBooleanQuery(value))
+  @IsBoolean()
+  includePriceTiers?: boolean;
 }

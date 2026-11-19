@@ -46,6 +46,10 @@ export class Vehicles extends BaseAuditEntity {
   @Column({ type: 'varchar', name: 'currency', length: 3 })
   currency!: string;
 
+  /** Max seats for shared trips on /cars. */
+  @Column({ type: 'int', name: 'max_passengers', default: 4 })
+  maxPassengers!: number;
+
   @Column({ type: 'varchar', name: 'organization_id', length: 36, nullable: true })
   organizationId!: string | null;
 
@@ -77,6 +81,26 @@ export class VehicleRoutes extends BaseAuditEntity {
    */
   @Column({ type: 'int', name: 'active', default: 1 })
   active!: number;
+
+}
+
+@Entity('vehicle_route_price_tiers')
+export class VehicleRoutePriceTiers extends BaseAuditEntity {
+  @PrimaryColumn('uuid', { name: 'id', length: 36 })
+  id!: string;
+
+  @Column({ type: 'varchar', name: 'route_id', length: 36 })
+  routeId!: string;
+
+  @Column({ type: 'int', name: 'min_passengers' })
+  minPassengers!: number;
+
+  @Column({ type: 'int', name: 'max_passengers' })
+  maxPassengers!: number;
+
+  /** Per-person price in cents for this passenger band. */
+  @Column({ type: 'int', name: 'price_cents' })
+  priceCents!: number;
 
 }
 

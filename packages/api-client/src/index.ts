@@ -29,6 +29,7 @@ import type {
   CreateVehicleCategoryRequest,
   CreateVehicleImageRequest,
   CreateVehicleRequest,
+  CreateVehicleRoutePriceTierRequest,
   CreateVehicleRouteRequest,
   Cabin,
   CabinAvailability,
@@ -464,6 +465,7 @@ import type {
   UpdateVehicleCategoryRequest,
   UpdateVehicleImageRequest,
   UpdateVehicleRequest,
+  UpdateVehicleRoutePriceTierRequest,
   UpdateVehicleRouteRequest,
   Vehicle,
   VehicleAvailability,
@@ -473,6 +475,9 @@ import type {
   VehicleImage,
   VehicleImagesListQuery,
   VehicleRoute,
+  VehicleRoutePriceTier,
+  VehicleRoutePriceTierInput,
+  VehicleRoutePriceTiersListQuery,
   VehicleRoutesListQuery,
   VehiclesListQuery,
   UpdatePropertyImageRequest,
@@ -4779,6 +4784,51 @@ export class ApiClient {
 
   deleteVehicleRoute(id: string): Promise<void> {
     return this.request<void>(`/vehicle-routes/${id}`, { method: 'DELETE' });
+  }
+
+  listVehicleRoutePriceTiers(
+    query?: VehicleRoutePriceTiersListQuery,
+  ): Promise<PaginatedResponse<VehicleRoutePriceTier>> {
+    return fetchPaginated<VehicleRoutePriceTier>(
+      this,
+      '/vehicle-routes/price-tiers',
+      query,
+    );
+  }
+
+  createVehicleRoutePriceTier(
+    body: CreateVehicleRoutePriceTierRequest,
+  ): Promise<VehicleRoutePriceTier> {
+    return this.request<VehicleRoutePriceTier>('/vehicle-routes/price-tiers', {
+      method: 'POST',
+      body,
+    });
+  }
+
+  updateVehicleRoutePriceTier(
+    id: string,
+    body: UpdateVehicleRoutePriceTierRequest,
+  ): Promise<VehicleRoutePriceTier> {
+    return this.request<VehicleRoutePriceTier>(
+      `/vehicle-routes/price-tiers/${id}`,
+      { method: 'PATCH', body },
+    );
+  }
+
+  deleteVehicleRoutePriceTier(id: string): Promise<void> {
+    return this.request<void>(`/vehicle-routes/price-tiers/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  replaceVehicleRoutePriceTiers(
+    routeId: string,
+    priceTiers: VehicleRoutePriceTierInput[],
+  ): Promise<VehicleRoutePriceTier[]> {
+    return this.request<VehicleRoutePriceTier[]>(
+      `/vehicle-routes/${routeId}/price-tiers`,
+      { method: 'PUT', body: { priceTiers } },
+    );
   }
 
   listVehicleAvailability(

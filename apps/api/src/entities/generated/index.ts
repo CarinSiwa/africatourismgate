@@ -44,6 +44,7 @@ export { RentalAgencies } from './car-rentals.entity';
 export { VehicleCategories } from './car-rentals.entity';
 export { Vehicles } from './car-rentals.entity';
 export { VehicleRoutes } from './car-rentals.entity';
+export { VehicleRoutePriceTiers } from './car-rentals.entity';
 export { VehicleAvailability } from './car-rentals.entity';
 export { CruiseLines } from './cruises.entity';
 export { CruisePorts } from './cruises.entity';
