@@ -469,6 +469,9 @@ export type Translations = {
     pickupLocation: string;
     departureLocation: string;
     arrivalLocation: string;
+    selectDeparture: string;
+    selectArrival: string;
+    selectDepartureFirst: string;
     travelDate: string;
     routeLabel: string;
     routePriceLabel: string;

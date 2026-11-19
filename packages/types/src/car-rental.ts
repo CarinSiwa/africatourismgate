@@ -144,6 +144,12 @@ export interface VehicleAvailabilityListQuery {
   endTo?: string;
 }
 
+/** Active public catalogue OD pair for the /cars search form. */
+export interface VehicleRouteOption {
+  departureCity: string;
+  arrivalCity: string;
+}
+
 /**
  * Tronçon tarifé : ville départ → ville arrivée (texte libre) pour un véhicule.
  * `active` gates the public /cars catalogue only — inactive routes remain

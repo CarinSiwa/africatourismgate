@@ -48,8 +48,10 @@ export class PublicVehiclesService {
     private readonly destinationsRepository: Repository<Destinations>,
   ) {}
 
-  /** Free-text cities that appear as départ or arrivée on catalogue-visible tronçons. */
-  async listPickupLocations(): Promise<PublicDestinationDto[]> {
+  /** Unique active départ → arrivée pairs for the public cars search form. */
+  async listRouteOptions(): Promise<
+    { departureCity: string; arrivalCity: string }[]
+  > {
     const routes = await this.vehicleRoutesRepository
       .createQueryBuilder('route')
       .innerJoin(
@@ -59,14 +61,31 @@ export class PublicVehiclesService {
       )
       .where('route.deletedAt IS NULL')
       .andWhere('route.active = 1')
+      .orderBy('route.departureCity', 'ASC')
+      .addOrderBy('route.arrivalCity', 'ASC')
       .getMany();
 
-    const names = new Set<string>();
+    const seen = new Set<string>();
+    const pairs: { departureCity: string; arrivalCity: string }[] = [];
     for (const route of routes) {
-      const departure = route.departureCity?.trim();
-      const arrival = route.arrivalCity?.trim();
-      if (departure) names.add(departure);
-      if (arrival) names.add(arrival);
+      const departureCity = route.departureCity?.trim();
+      const arrivalCity = route.arrivalCity?.trim();
+      if (!departureCity || !arrivalCity) continue;
+      const key = `${departureCity.toLowerCase()}|${arrivalCity.toLowerCase()}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      pairs.push({ departureCity, arrivalCity });
+    }
+    return pairs;
+  }
+
+  /** Free-text cities that appear as départ or arrivée on catalogue-visible tronçons. */
+  async listPickupLocations(): Promise<PublicDestinationDto[]> {
+    const pairs = await this.listRouteOptions();
+    const names = new Set<string>();
+    for (const pair of pairs) {
+      names.add(pair.departureCity);
+      names.add(pair.arrivalCity);
     }
 
     return [...names]

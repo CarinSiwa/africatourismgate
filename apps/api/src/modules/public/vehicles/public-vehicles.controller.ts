@@ -20,6 +20,16 @@ export class PublicVehiclesController {
   }
 
   @Public()
+  @Get('vehicles/route-options')
+  @ApiOperation({
+    summary:
+      'List unique active tronçon pairs (départ → arrivée) for the cars search form',
+  })
+  listRouteOptions() {
+    return this.service.listRouteOptions();
+  }
+
+  @Public()
   @Get('vehicles/search')
   @ApiOperation({
     summary: 'Search vehicles by tronçon (départ → arrivée) and travel date',

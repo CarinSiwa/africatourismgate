@@ -194,6 +194,7 @@ export type {
   VehicleImage,
   VehicleImagesListQuery,
   VehicleRoute,
+  VehicleRouteOption,
   VehicleRoutesListQuery,
   VehiclesListQuery,
 } from './car-rental.js';
