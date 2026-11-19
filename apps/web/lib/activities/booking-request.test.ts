@@ -52,13 +52,12 @@ describe('shouldShowActivityBookingRequestForm', () => {
           allowBookingRequestsWhenUnavailable: true,
         },
         2,
-        false,
       ),
       true,
     );
   });
 
-  it('shows form when preferRequest and toggle on with no bookable slots', () => {
+  it('shows form when toggle on with no bookable slots', () => {
     assert.equal(
       shouldShowActivityBookingRequestForm(
         {
@@ -67,7 +66,6 @@ describe('shouldShowActivityBookingRequestForm', () => {
           allowBookingRequestsWhenUnavailable: true,
         },
         2,
-        true,
       ),
       true,
     );
@@ -92,7 +90,6 @@ describe('shouldShowActivityBookingRequestForm', () => {
           allowBookingRequestsWhenUnavailable: true,
         },
         1,
-        false,
       ),
       true,
     );
@@ -107,7 +104,6 @@ describe('shouldShowActivityBookingRequestForm', () => {
           allowBookingRequestsWhenUnavailable: false,
         },
         1,
-        true,
       ),
       false,
     );
@@ -132,7 +128,6 @@ describe('shouldShowActivityBookingRequestForm', () => {
           allowBookingRequestsWhenUnavailable: true,
         },
         2,
-        true,
       ),
       false,
     );

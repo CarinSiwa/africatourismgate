@@ -36,7 +36,6 @@ type ActivityBookingSidebarProps = {
   participants: number;
   onParticipantsChange: (value: number) => void;
   onReserve: () => void;
-  preferBookingRequest?: boolean;
   t: Translations['activities'];
   locale?: string;
 };
@@ -47,17 +46,12 @@ function ActivityBookingContent({
   participants,
   onParticipantsChange,
   onReserve,
-  preferBookingRequest = false,
   t,
   locale,
 }: ActivityBookingSidebarProps) {
   const trustHints = useBookingSidebarTrustHints();
   const ctaLabel = useBookingCtaLabel('activity_schedule');
-  const showRequestForm = shouldShowActivityBookingRequestForm(
-    detail,
-    participants,
-    preferBookingRequest,
-  );
+  const showRequestForm = shouldShowActivityBookingRequestForm(detail, participants);
   const canReserve =
     selectedSchedule != null && selectedSchedule.remainingPlaces >= participants;
 
@@ -173,13 +167,9 @@ export function ActivityBookingSidebar(props: ActivityBookingSidebarProps) {
 export function ActivityBookingMobileBar(props: ActivityBookingSidebarProps) {
   const tBooking = useTranslations('bookingSidebar');
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const { detail, selectedSchedule, participants, onReserve, preferBookingRequest, t } = props;
+  const { detail, selectedSchedule, participants, onReserve, t } = props;
   const ctaLabel = useBookingCtaLabel('activity_schedule');
-  const showRequestForm = shouldShowActivityBookingRequestForm(
-    detail,
-    participants,
-    preferBookingRequest ?? false,
-  );
+  const showRequestForm = shouldShowActivityBookingRequestForm(detail, participants);
   const canReserve =
     selectedSchedule != null && selectedSchedule.remainingPlaces >= participants;
 

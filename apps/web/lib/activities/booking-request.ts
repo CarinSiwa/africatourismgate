@@ -32,13 +32,12 @@ export function getActivityListingCtaMode(
 
 /**
  * Detail sidebar: show inquiry form instead of checkout CTA.
- * `preferRequest` is kept for callers (#booking-request); with the toggle on,
- * any view without a bookable slot shows the form (including deep links without a date).
+ * With the toggle on, any view without a bookable slot shows the form
+ * (including deep links without a date / #booking-request).
  */
 export function shouldShowActivityBookingRequestForm(
   detail: Pick<ActivityDetail, 'date' | 'schedules' | 'allowBookingRequestsWhenUnavailable'>,
   participants: number,
-  _preferRequest: boolean,
 ): boolean {
   if (!detail.allowBookingRequestsWhenUnavailable) {
     return false;
