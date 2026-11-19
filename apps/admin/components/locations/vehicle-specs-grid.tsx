@@ -6,6 +6,8 @@ import { resolveVehicleSpecs } from '../../lib/vehicle-category-specs';
 
 type VehicleSpecsGridProps = {
   categoryName: string;
+  /** Tighter chips for hero / narrow containers. */
+  compact?: boolean;
 };
 
 type SpecItem = {
@@ -99,7 +101,7 @@ function localizeFuel(value: string, labels: ReturnType<typeof useVehicleSpecLab
   return value;
 }
 
-export function VehicleSpecsGrid({ categoryName }: VehicleSpecsGridProps) {
+export function VehicleSpecsGrid({ categoryName, compact = false }: VehicleSpecsGridProps) {
   const specLabels = useVehicleSpecLabels();
   const specs = resolveVehicleSpecs(categoryName);
 
@@ -125,13 +127,30 @@ export function VehicleSpecsGrid({ categoryName }: VehicleSpecsGridProps) {
   );
 
   return (
-    <ul className="grid grid-cols-1 gap-2 min-[420px]:grid-cols-3 sm:gap-3" role="list">
+    <ul
+      className={
+        compact
+          ? 'grid grid-cols-1 gap-2 sm:grid-cols-3'
+          : 'grid grid-cols-1 gap-2 sm:grid-cols-3 sm:gap-3'
+      }
+      role="list"
+    >
       {items.map((item) => (
         <li
           key={item.label}
-          className="flex min-w-0 items-center gap-2.5 rounded-lg border border-atg-border/80 bg-atg-surface/60 px-3 py-2.5 sm:gap-3 sm:px-4 sm:py-3"
+          className={
+            compact
+              ? 'flex min-w-0 items-center gap-2 rounded-lg border border-atg-border/80 bg-atg-surface/60 px-2.5 py-2'
+              : 'flex min-w-0 items-center gap-2.5 rounded-lg border border-atg-border/80 bg-atg-surface/60 px-3 py-2.5 sm:gap-3 sm:px-4 sm:py-3'
+          }
         >
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-atg-elevated text-primary ring-1 ring-atg-border/60">
+          <span
+            className={
+              compact
+                ? 'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-atg-elevated text-primary ring-1 ring-atg-border/60'
+                : 'flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-atg-elevated text-primary ring-1 ring-atg-border/60'
+            }
+          >
             {item.icon}
           </span>
           <div className="min-w-0 text-left">

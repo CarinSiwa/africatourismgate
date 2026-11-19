@@ -396,12 +396,12 @@ export function VehicleRoutesSection({
   const routes = state.status === 'ready' ? state.routes : [];
   const content = (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
+      <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
           <h3 className="text-sm font-semibold text-atg-fg">{t('title')}</h3>
           <p className="mt-0.5 text-xs text-atg-muted">{t('intro')}</p>
         </div>
-        <Button type="button" size="sm" onClick={openCreate}>
+        <Button type="button" size="sm" className="w-full shrink-0 sm:w-auto" onClick={openCreate}>
           {t('addRoute')}
         </Button>
       </div>
