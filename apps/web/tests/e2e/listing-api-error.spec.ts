@@ -24,7 +24,7 @@ const LISTING_CASES: ListingCase[] = [
   {
     name: 'cars',
     path: '/cars',
-    errorText: /Impossible de charger les véhicules/i,
+    errorText: /Impossible de charger les tronçons/i,
   },
   {
     name: 'cruises',
