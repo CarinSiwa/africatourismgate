@@ -145,16 +145,29 @@ export function VehicleViewPage({ vehicleId }: VehicleViewPageProps) {
         id: 'route',
         header: tRoutes('columns.route'),
         meta: { cellClassName: 'min-w-0' },
-        cell: ({ row }) => (
-          <span className="block min-w-0 truncate text-sm font-medium text-atg-fg">
-            {row.original.departureCity} → {row.original.arrivalCity}
-          </span>
-        ),
+        cell: ({ row }) => {
+          const active = isRouteActive(row.original);
+          return (
+            <div className="min-w-0 space-y-1.5">
+              <span className="block break-words text-sm font-medium leading-snug text-atg-fg">
+                {row.original.departureCity} → {row.original.arrivalCity}
+              </span>
+              <div className="flex flex-wrap items-center gap-2 sm:hidden">
+                <span className="tabular-nums text-xs font-medium text-atg-fg">
+                  {formatPrice(row.original.priceCents, row.original.currency)}
+                </span>
+                <DataTableBadge variant={active ? 'default' : 'muted'}>
+                  {active ? tRoutes('statusVisible') : tRoutes('statusHidden')}
+                </DataTableBadge>
+              </div>
+            </div>
+          );
+        },
       },
       {
         id: 'price',
         header: tRoutes('columns.price'),
-        meta: { hideOnMobile: true },
+        meta: { desktopOnly: true },
         cell: ({ row }) => (
           <span className="tabular-nums text-sm text-atg-fg">
             {formatPrice(row.original.priceCents, row.original.currency)}
@@ -164,7 +177,7 @@ export function VehicleViewPage({ vehicleId }: VehicleViewPageProps) {
       {
         id: 'visibility',
         header: tRoutes('columns.visibility'),
-        meta: { hideOnMobile: true },
+        meta: { desktopOnly: true },
         cell: ({ row }) => (
           <DataTableBadge variant={isRouteActive(row.original) ? 'default' : 'muted'}>
             {isRouteActive(row.original)
@@ -176,7 +189,7 @@ export function VehicleViewPage({ vehicleId }: VehicleViewPageProps) {
       {
         id: 'actions',
         header: tCommonColumns('actions'),
-        meta: { align: 'right', cellClassName: 'w-[4.5rem] sm:w-auto' },
+        meta: { align: 'right', cellClassName: 'w-12 sm:w-auto' },
         cell: () => (
           <DataTableActions className="opacity-90 transition-opacity group-hover:opacity-100">
             <DataTableActionButton
@@ -198,15 +211,22 @@ export function VehicleViewPage({ vehicleId }: VehicleViewPageProps) {
         header: tCommonColumns('period'),
         meta: { cellClassName: 'min-w-0' },
         cell: ({ row }) => (
-          <span className="block min-w-0 truncate text-sm tabular-nums text-atg-fg">
-            {formatRange(row.original.startDatetime, row.original.endDatetime)}
-          </span>
+          <div className="min-w-0 space-y-1.5">
+            <span className="block break-words text-sm leading-snug tabular-nums text-atg-fg">
+              {formatRange(row.original.startDatetime, row.original.endDatetime)}
+            </span>
+            <div className="sm:hidden">
+              <DataTableBadge variant="muted">
+                {getVehicleStatusLabel(row.original.status, statusLabels)}
+              </DataTableBadge>
+            </div>
+          </div>
         ),
       },
       {
         accessorKey: 'status',
         header: tAvailability('status'),
-        meta: { hideOnMobile: true },
+        meta: { desktopOnly: true },
         cell: ({ row }) => (
           <DataTableBadge variant="muted">
             {getVehicleStatusLabel(row.original.status, statusLabels)}
@@ -216,7 +236,7 @@ export function VehicleViewPage({ vehicleId }: VehicleViewPageProps) {
       {
         id: 'actions',
         header: tCommonColumns('actions'),
-        meta: { align: 'right', cellClassName: 'w-[5.5rem] sm:w-auto' },
+        meta: { align: 'right', cellClassName: 'w-[4.75rem] sm:w-auto' },
         cell: () => (
           <DataTableActions className="opacity-90 transition-opacity group-hover:opacity-100">
             <DataTableActionButton action="calendar" href={availabilityHref} />

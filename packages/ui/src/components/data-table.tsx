@@ -27,6 +27,11 @@ declare module '@tanstack/react-table' {
     cellClassName?: string;
     /** Hidden below md; content shown in expandable row details. */
     hideOnMobile?: boolean;
+    /**
+     * Hidden below md and omitted from expandable details
+     * (use when the primary cell already shows that info on mobile).
+     */
+    desktopOnly?: boolean;
     /** Detail panel label (fallback: column header). */
     mobileDetailLabel?: string;
   }
@@ -66,6 +71,14 @@ function getAlign(meta: { align?: DataTableAlign } | undefined): DataTableAlign 
 
 function isHiddenOnMobile<TData>(header: Header<TData, unknown>): boolean {
   return header.column.columnDef.meta?.hideOnMobile === true;
+}
+
+function isDesktopOnly<TData>(header: Header<TData, unknown>): boolean {
+  return header.column.columnDef.meta?.desktopOnly === true;
+}
+
+function isOmittedOnMobile<TData>(header: Header<TData, unknown>): boolean {
+  return isHiddenOnMobile(header) || isDesktopOnly(header);
 }
 
 function getHeaderLabel<TData>(header: Header<TData, unknown>): ReactNode {
@@ -269,9 +282,11 @@ export function DataTable<TData>({
   const headerGroup = table.getHeaderGroups()[0];
   const allHeaders = headerGroup?.headers ?? [];
   const hiddenMobileHeaders = allHeaders.filter(isHiddenOnMobile);
+  const hasDesktopOnlyColumns = allHeaders.some(isDesktopOnly);
   const useMobileLayout = isMobile && hiddenMobileHeaders.length > 0;
-  const visibleHeaders = useMobileLayout
-    ? allHeaders.filter((header) => !isHiddenOnMobile(header))
+  const useCompactColumns = isMobile && (useMobileLayout || hasDesktopOnlyColumns);
+  const visibleHeaders = useCompactColumns
+    ? allHeaders.filter((header) => !isOmittedOnMobile(header))
     : allHeaders;
   const hasExpandColumn = useMobileLayout;
   const skeletonColumns = visibleHeaders.length + (hasExpandColumn ? 1 : 0);
