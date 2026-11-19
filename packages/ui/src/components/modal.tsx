@@ -95,7 +95,7 @@ export function Modal({
       )}
     >
       <div
-        className="flex min-h-full items-center justify-center p-4"
+        className="flex min-h-full items-end justify-center p-3 sm:items-center sm:p-4"
         onClick={close}
       >
         <div
@@ -111,15 +111,15 @@ export function Modal({
           tabIndex={-1}
           onClick={(event) => event.stopPropagation()}
           className={cn(
-            'relative z-10 my-auto w-full min-w-0 max-w-lg max-h-[calc(100dvh-2rem)] overflow-y-auto overflow-x-hidden overscroll-contain rounded-xl border border-atg-border bg-atg-elevated p-6 shadow-xl shadow-black/10 dark:shadow-black/40',
+            'relative z-10 my-auto w-full min-w-0 max-w-lg max-h-[calc(100dvh-1.5rem)] overflow-y-auto overflow-x-hidden overscroll-contain rounded-xl border border-atg-border bg-atg-elevated p-4 shadow-xl shadow-black/10 sm:max-h-[calc(100dvh-2rem)] sm:p-6 dark:shadow-black/40',
             'focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-atg-surface',
             className,
           )}
         >
           {(title || showClose) && (
-            <div className="mb-4 flex items-start justify-between gap-4">
+            <div className="mb-3 flex items-start justify-between gap-3 sm:mb-4 sm:gap-4">
               {title ? (
-                <h2 id={titleId} className="text-lg font-semibold text-atg-fg">
+                <h2 id={titleId} className="min-w-0 text-base font-semibold text-atg-fg sm:text-lg">
                   {title}
                 </h2>
               ) : (
@@ -140,7 +140,7 @@ export function Modal({
             </div>
           )}
           {description ? (
-            <p id={descriptionId} className="mb-4 text-sm text-atg-muted">
+            <p id={descriptionId} className="mb-3 text-sm text-atg-muted sm:mb-4">
               {description}
             </p>
           ) : null}

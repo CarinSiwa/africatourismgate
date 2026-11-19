@@ -161,13 +161,13 @@ export function ConversationChat({
   return (
     <div
       className={cn(
-        'flex flex-col overflow-hidden rounded-xl border border-atg-border bg-atg-elevated shadow-sm dark:shadow-black/20',
+        'flex min-h-0 min-w-0 flex-col overflow-hidden rounded-xl border border-atg-border bg-atg-elevated shadow-sm dark:shadow-black/20',
         className,
       )}
     >
       <div
         ref={threadContainerRef}
-        className="max-h-[28rem] min-h-[12rem] flex-1 overflow-y-auto p-4"
+        className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden p-3 sm:max-h-[28rem] sm:min-h-[12rem] sm:p-4"
         aria-busy={loading}
       >
         {loading ? (
@@ -266,23 +266,25 @@ export function ConversationChat({
       </div>
 
       {canReply ? (
-        <div className="border-t border-atg-border bg-atg-surface/50 p-4 dark:bg-white/[0.02]">
+        <div className="shrink-0 border-t border-atg-border bg-atg-surface/50 p-3 sm:p-4 dark:bg-white/[0.02]">
           {labels.replyTitle ? (
-            <h4 className="mb-3 text-sm font-semibold text-atg-fg">{labels.replyTitle}</h4>
+            <h4 className="mb-2 text-sm font-semibold text-atg-fg sm:mb-3">
+              {labels.replyTitle}
+            </h4>
           ) : null}
-          <div>
+          <div className="min-w-0">
             <label htmlFor={replyBodyId} className="mb-1 block text-xs font-medium text-atg-muted">
               {labels.replyLabel}
             </label>
             <textarea
               id={replyBodyId}
-              rows={3}
+              rows={2}
               value={replyBody}
               onChange={(e) => onReplyBodyChange(e.target.value)}
               onKeyDown={handleKeyDown}
               disabled={sending}
               placeholder={labels.replyPlaceholder}
-              className="w-full resize-y rounded-lg border border-atg-border bg-atg-elevated px-4 py-3 text-sm text-atg-fg placeholder:text-atg-muted disabled:opacity-60"
+              className="max-h-40 min-h-[4.5rem] w-full resize-y rounded-lg border border-atg-border bg-atg-elevated px-3 py-2.5 text-sm text-atg-fg placeholder:text-atg-muted disabled:opacity-60 sm:min-h-[5.5rem] sm:px-4 sm:py-3"
             />
           </div>
           {replyError ? (
@@ -290,13 +292,14 @@ export function ConversationChat({
               {replyError}
             </p>
           ) : null}
-          <div className="mt-3">
+          <div className="mt-3 flex justify-stretch sm:justify-start">
             <Button
               type="button"
               variant="primary"
               disabled={sending || !replyBody.trim()}
               loading={sending}
               onClick={onSend}
+              className="w-full sm:w-auto"
             >
               {labels.sendReply}
             </Button>
