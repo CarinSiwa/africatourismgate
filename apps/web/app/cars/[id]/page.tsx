@@ -32,15 +32,17 @@ export async function generateMetadata({ params, searchParams }: PageProps): Pro
       getTranslations('cars'),
       getLocale(),
     ]);
-    const title =
+    const routeTitle = `${detail.route.departureCity} → ${detail.route.arrivalCity}`;
+    const vehicleLabel =
       detail.category.exampleModel ??
       detail.category.name ??
       detail.licensePlate ??
       t('detailMetaFallbackTitle');
+    const title = `${routeTitle} · ${vehicleLabel}`;
     return buildPageMetadata({
       title,
       description: t('detailMetaDescription', {
-        name: title,
+        name: routeTitle,
         city: detail.agency.city || detail.agency.name,
       }),
       path,

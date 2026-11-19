@@ -231,12 +231,13 @@ export function CarDetailPageContent({
     );
   }
 
-  const title =
+  const vehicleTitle =
     detail.category.exampleModel ??
     detail.category.name ??
     detail.licensePlate ??
     c.categoryTitle;
-  const routeLabel = `${detail.route.departureCity} → ${detail.route.arrivalCity}`;
+  const routeTitle = `${detail.route.departureCity} → ${detail.route.arrivalCity}`;
+  const galleryName = `${routeTitle} · ${vehicleTitle}`;
 
   return (
     <div className="flex min-h-screen flex-col bg-atg-surface dark:bg-atg-surface">
@@ -260,7 +261,7 @@ export function CarDetailPageContent({
             <span className="text-atg-muted/60" aria-hidden>
               ›
             </span>
-            <span className="font-medium text-atg-fg">{title}</span>
+            <span className="font-medium text-atg-fg">{routeTitle}</span>
           </nav>
         </div>
       </div>
@@ -271,7 +272,7 @@ export function CarDetailPageContent({
             {detail.images && detail.images.length > 0 ? (
               <ProductGallery
                 images={detail.images}
-                name={title}
+                name={galleryName}
                 labels={{
                   ariaLabel: c.galleryAria,
                   openLightbox: c.galleryOpenLightbox,
@@ -284,33 +285,27 @@ export function CarDetailPageContent({
             ) : (
               <CarHeroMedia
                 imageUrl={detail.imageUrl}
-                categoryName={detail.category.name}
-                title={title}
-                agencyName={detail.agency.name}
+                categoryName={c.routeLabel}
+                title={routeTitle}
+                agencyName={`${vehicleTitle} · ${detail.agency.name}`}
                 placeholderAria={c.imagePlaceholderAria}
               />
             )}
 
             <header>
-              <p className="text-sm font-medium text-primary">{detail.category.name}</p>
-              <h1 className="mt-1 text-2xl font-bold text-atg-fg sm:text-3xl">{title}</h1>
-              <p className="mt-2 flex items-center gap-1.5 text-sm text-atg-muted">
-                <svg
-                  className="h-4 w-4 shrink-0 text-primary"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  aria-hidden
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={1.5}
-                    d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
-                  />
-                </svg>
-                {routeLabel}
+              <p className="text-sm font-medium text-primary">{c.routeLabel}</p>
+              <h1 className="mt-1 text-2xl font-bold text-atg-fg sm:text-3xl">
+                {routeTitle}
+              </h1>
+              <p className="mt-2 text-base font-medium text-atg-fg">
+                {vehicleTitle}
+                {detail.category.exampleModel &&
+                detail.category.name &&
+                detail.category.exampleModel !== detail.category.name
+                  ? ` · ${detail.category.name}`
+                  : null}
               </p>
+              <p className="mt-1 text-sm text-atg-muted">{detail.agency.name}</p>
               <p className="mt-2 text-sm text-atg-muted">
                 {formatDisplayDate(detail.travelDate, locale)}
               </p>
