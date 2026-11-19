@@ -332,7 +332,7 @@ export function SearchTabs() {
       const departure = carDeparture.trim();
       const arrival = carArrival.trim();
 
-      if (!departure || !arrival || !departDate) {
+      if (!departure || !arrival) {
         setCarError(t('carsRequired'));
         return;
       }
@@ -350,7 +350,6 @@ export function SearchTabs() {
 
       params.set('departureLocation', resolved?.departureCity ?? departure);
       params.set('arrivalLocation', resolved?.arrivalCity ?? arrival);
-      params.set('travelDate', departDate);
       router.push(buildSearchRoute('cars', params));
       return;
     }
@@ -609,7 +608,7 @@ export function SearchTabs() {
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <span className="text-sm text-atg-muted">{t('carsDurationHint')}</span>
                 </div>
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-[1fr_auto_1fr_1fr_auto] lg:items-end">
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-[1fr_auto_1fr_auto] lg:items-end">
                   <div>
                     <SearchFormLabel>{tCars('departureLocation')}</SearchFormLabel>
                     <SearchFormDatalistInput
@@ -688,19 +687,6 @@ export function SearchTabs() {
                       disabled={carRoutesLoading}
                       onChange={(value) => {
                         setCarArrival(value);
-                        setCarError(null);
-                      }}
-                    />
-                  </div>
-                  <div>
-                    <SearchFormLabel>{tCars('travelDate')}</SearchFormLabel>
-                    <SearchFormInput
-                      type="date"
-                      name="travelDate"
-                      value={departDate}
-                      min={today}
-                      onChange={(value) => {
-                        setDepartDate(value);
                         setCarError(null);
                       }}
                     />

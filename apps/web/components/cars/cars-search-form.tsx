@@ -4,12 +4,10 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import type { CarsSearchParams } from '../../lib/cars/listings';
 import { useVehicleRouteOptions } from '../../lib/cars/use-vehicle-route-options';
-import { todayISODate } from '../../lib/hotels/dates';
 import { useTranslations } from 'next-intl';
 import { buildSearchRoute } from '../../lib/search/route';
 import {
   SearchFormDatalistInput,
-  SearchFormInput,
   SearchFormLabel,
   SearchFormPanel,
   SearchFormSubmit,
@@ -30,7 +28,6 @@ export function CarsSearchForm({ initialValues }: CarsSearchFormProps) {
   const [arrivalLocation, setArrivalLocation] = useState(
     initialValues.arrivalLocation ?? '',
   );
-  const [travelDate, setTravelDate] = useState(initialValues.travelDate ?? '');
   const [error, setError] = useState<string | null>(null);
 
   const {
@@ -41,8 +38,6 @@ export function CarsSearchForm({ initialValues }: CarsSearchFormProps) {
     loading: routesLoading,
     error: routesError,
   } = useVehicleRouteOptions();
-
-  const today = todayISODate();
 
   const arrivalSuggestions = useMemo(
     () => arrivalsForDeparture(departureLocation),
@@ -59,13 +54,8 @@ export function CarsSearchForm({ initialValues }: CarsSearchFormProps) {
   useEffect(() => {
     setDepartureLocation(initialValues.departureLocation ?? '');
     setArrivalLocation(initialValues.arrivalLocation ?? '');
-    setTravelDate(initialValues.travelDate ?? '');
     setError(null);
-  }, [
-    initialValues.departureLocation,
-    initialValues.arrivalLocation,
-    initialValues.travelDate,
-  ]);
+  }, [initialValues.departureLocation, initialValues.arrivalLocation]);
 
   function handleDepartureChange(value: string) {
     setDepartureLocation(value);
@@ -101,7 +91,7 @@ export function CarsSearchForm({ initialValues }: CarsSearchFormProps) {
     const departure = departureLocation.trim();
     const arrival = arrivalLocation.trim();
 
-    if (!departure || !arrival || !travelDate) {
+    if (!departure || !arrival) {
       setError(t('carsRequired'));
       return;
     }
@@ -123,7 +113,6 @@ export function CarsSearchForm({ initialValues }: CarsSearchFormProps) {
       resolved?.departureCity ?? departure,
     );
     params.set('arrivalLocation', resolved?.arrivalCity ?? arrival);
-    params.set('travelDate', travelDate);
 
     router.push(buildSearchRoute('cars', params));
   }
@@ -134,7 +123,7 @@ export function CarsSearchForm({ initialValues }: CarsSearchFormProps) {
         <span className="text-sm text-atg-muted">{t('carsDurationHint')}</span>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-[1fr_auto_1fr_1fr_auto] lg:items-end">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-[1fr_auto_1fr_auto] lg:items-end">
         <div>
           <SearchFormLabel>{c('departureLocation')}</SearchFormLabel>
           <SearchFormDatalistInput
@@ -188,20 +177,6 @@ export function CarsSearchForm({ initialValues }: CarsSearchFormProps) {
             disabled={routesLoading}
             onChange={(value) => {
               setArrivalLocation(value);
-              setError(null);
-            }}
-          />
-        </div>
-
-        <div>
-          <SearchFormLabel>{c('travelDate')}</SearchFormLabel>
-          <SearchFormInput
-            type="date"
-            name="travelDate"
-            value={travelDate}
-            min={today}
-            onChange={(value) => {
-              setTravelDate(value);
               setError(null);
             }}
           />
