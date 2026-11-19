@@ -7,12 +7,15 @@ import { mockCheckoutAuth } from './helpers/mock-checkout-auth';
 const VEHICLE_ID = '00000000-0000-4000-8000-000000004021';
 const SLOT_ID = '00000000-0000-4000-8000-000000004023';
 const ROUTE_ID = '00000000-0000-4000-8000-000000004024';
+const TRIP_ID = '00000000-0000-4000-8000-000000004026';
 const AGENCY_ID = '00000000-0000-4000-8000-000000004020';
 const CATEGORY_ID = '00000000-0000-4000-8000-000000004010';
 const BOOKING_ID = 'booking-e2e-car';
 const TRAVEL = '2026-08-01';
 const TOTAL_CENTS = 5500;
 const MODEL = 'Toyota Yaris';
+const ROUTE_TITLE = 'Kinshasa → Lubumbashi';
+const SEATS = 1;
 
 const vehicleSearchMock = {
   data: [
@@ -71,6 +74,28 @@ const vehicleDetailMock = {
   imageUrl: null,
 };
 
+const vehicleTripMock = {
+  id: TRIP_ID,
+  vehicleId: VEHICLE_ID,
+  routeId: ROUTE_ID,
+  availabilityId: SLOT_ID,
+  departureDatetime: '2026-08-01T09:00:00.000Z',
+  createdByUserId: 'user-e2e',
+  maxCapacity: 4,
+  seatsReserved: SEATS,
+  seatsRemaining: 3,
+  status: 'open',
+  priceCentsPerPerson: TOTAL_CENTS,
+  currency: 'USD',
+  departureCity: 'Kinshasa',
+  arrivalCity: 'Lubumbashi',
+  paymentClosesAt: '2026-08-01T06:00:00.000Z',
+  canJoin: true,
+  canEditDeparture: true,
+  createdAt: '2026-07-01T00:00:00.000Z',
+  updatedAt: null,
+};
+
 test('tronçon Kinshasa→Lubumbashi: liste -> fiche -> panier -> recap -> Stripe -> confirmation', async ({
   page,
 }) => {
@@ -107,6 +132,16 @@ test('tronçon Kinshasa→Lubumbashi: liste -> fiche -> panier -> recap -> Strip
     });
   });
 
+  await page.route('**/api/public/vehicles/route-options**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify([
+        { departureCity: 'Kinshasa', arrivalCity: 'Lubumbashi' },
+      ]),
+    });
+  });
+
   await page.route('**/api/public/vehicles/search**', async (route) => {
     await route.fulfill({
       status: 200,
@@ -120,6 +155,38 @@ test('tronçon Kinshasa→Lubumbashi: liste -> fiche -> panier -> recap -> Strip
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify(vehicleDetailMock),
+    });
+  });
+
+  await page.route('**/api/public/vehicle-trips**', async (route) => {
+    const method = route.request().method();
+    if (method === 'GET') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          data: [],
+          meta: { total: 0, page: 1, limit: 20, totalPages: 0 },
+        }),
+      });
+      return;
+    }
+    if (method === 'POST') {
+      await route.fulfill({
+        status: 201,
+        contentType: 'application/json',
+        body: JSON.stringify(vehicleTripMock),
+      });
+      return;
+    }
+    await route.fulfill({ status: 405, body: '' });
+  });
+
+  await page.route(`**/api/public/vehicle-trips/${TRIP_ID}**`, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(vehicleTripMock),
     });
   });
 
@@ -138,29 +205,42 @@ test('tronçon Kinshasa→Lubumbashi: liste -> fiche -> panier -> recap -> Strip
     `/cars?departureLocation=Kinshasa&arrivalLocation=Lubumbashi&travelDate=${TRAVEL}`,
   );
 
-  await expect(page.getByRole('heading', { name: MODEL })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole('heading', { name: ROUTE_TITLE })).toBeVisible({
+    timeout: 15_000,
+  });
+  await expect(page.getByText(MODEL).first()).toBeVisible();
   await page.getByRole('link', { name: /voir d[ée]tails|view details|ver detalles/i }).click();
 
   await expect(page).toHaveURL(new RegExp(`/cars/${VEHICLE_ID}`), { timeout: 15_000 });
-  await expect(page.getByRole('heading', { name: MODEL })).toBeVisible();
+  await expect(page.getByRole('heading', { name: ROUTE_TITLE })).toBeVisible();
+  await expect(page.getByText(MODEL).first()).toBeVisible();
 
   await Promise.all([
-    page.waitForURL(/\/booking\/cart\?.*kind=vehicle/, { timeout: 15_000 }),
+    page.waitForURL(/\/booking\/cart\?.*vehicleTripId=/, { timeout: 15_000 }),
     page
       .getByRole('complementary')
       .getByRole('button', {
-        name: /demander une r[ée]servation|request a booking|solicitar una reserva|^r[ée]server$|^book now$/i,
+        name: /demander une r[ée]servation|request a booking|solicitar una reserva|^r[ée]server$|^book now$|reserving seats/i,
       })
       .click(),
   ]);
 
-  await page.goto(
-    `/booking/recap?kind=vehicle&vehicleId=${VEHICLE_ID}&availabilitySlotId=${SLOT_ID}&routeId=${ROUTE_ID}&travelDate=${TRAVEL}`,
-  );
+  const recapQuery = new URLSearchParams({
+    kind: 'vehicle',
+    vehicleId: VEHICLE_ID,
+    availabilitySlotId: SLOT_ID,
+    routeId: ROUTE_ID,
+    travelDate: TRAVEL,
+    vehicleTripId: TRIP_ID,
+    seats: String(SEATS),
+    departureDatetime: vehicleTripMock.departureDatetime,
+  }).toString();
+  await page.goto(`/booking/recap?${recapQuery}`);
   await expect(page.getByRole('heading', { name: /r[ée]capitulatif|summary|resumen/i })).toBeVisible({
     timeout: 15_000,
   });
-  await expect(page.getByText(MODEL)).toBeVisible();
+  await expect(page.getByText(ROUTE_TITLE).first()).toBeVisible();
+  await expect(page.getByText(MODEL).first()).toBeVisible();
 
   await page.locator('input[name="preferredPaymentMethod"][value="stripe"]').check();
   await fillCheckoutManifest(page);
@@ -182,9 +262,10 @@ test('tronçon Kinshasa→Lubumbashi: liste -> fiche -> panier -> recap -> Strip
       {
         itemType: 'vehicle',
         referenceId: SLOT_ID,
-        quantity: 1,
+        quantity: SEATS,
         routeId: ROUTE_ID,
         startDate: TRAVEL,
+        vehicleTripId: TRIP_ID,
       },
     ],
   });
