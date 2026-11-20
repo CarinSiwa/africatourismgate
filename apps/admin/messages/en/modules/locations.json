@@ -203,7 +203,7 @@
       "ariaLabel": "Vehicle routes list",
       "allVehicles": "All vehicles",
       "vehicleFallback": "Vehicle {id}",
-      "formHint": "Choose the vehicle, enter departure and arrival cities, then the fixed fare.",
+      "formHint": "Choose the vehicle, enter departure and arrival, the reference price, and the per-passenger fare grid.",
       "viewGrid": "Grid",
       "viewTable": "Table",
       "viewModeAria": "View mode",

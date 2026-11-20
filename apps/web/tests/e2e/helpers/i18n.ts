@@ -11,6 +11,21 @@ const MENU_LABEL: Record<AppLocale, RegExp> = {
 };
 
 /**
+ * Refresh after locale cookie/storage writes.
+ * Prefer reload over goto(url): redirect stubs (e.g. /about → who-we-are) can
+ * leave page.url() on the stub and abort a subsequent goto mid-redirect.
+ */
+async function reloadAfterLocale(page: Page): Promise<void> {
+  try {
+    await page.reload({ waitUntil: 'domcontentloaded' });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (!/ERR_ABORTED|NS_BINDING_ABORTED/.test(msg)) throw err;
+    await page.waitForLoadState('domcontentloaded');
+  }
+}
+
+/**
  * Apply locale via cookie + storage + reload (same persistence as LanguageSwitcher).
  * Prefer this over menu clicks on account/hydrate-heavy pages.
  */
@@ -38,7 +53,7 @@ export async function switchLanguage(page: Page, locale: AppLocale): Promise<voi
     }
   }, locale);
 
-  await page.goto(page.url(), { waitUntil: 'domcontentloaded' });
+  await reloadAfterLocale(page);
 
   const langBtn = page
     .getByRole('button', { name: /Choisir la langue|Select language|Elegir idioma/i })

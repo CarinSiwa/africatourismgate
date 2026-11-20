@@ -203,7 +203,7 @@
       "ariaLabel": "Lista de tramos",
       "allVehicles": "Todos los vehículos",
       "vehicleFallback": "Vehículo {id}",
-      "formHint": "Elija el vehículo, escriba la salida y la llegada, luego la tarifa fija.",
+      "formHint": "Elija el vehículo, escriba la salida y la llegada, el precio de referencia y la grilla por número de personas.",
       "viewGrid": "Cuadrícula",
       "viewTable": "Tabla",
       "viewModeAria": "Modo de visualización",

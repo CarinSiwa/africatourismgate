@@ -203,7 +203,7 @@
       "ariaLabel": "Liste des tronçons",
       "allVehicles": "Tous les véhicules",
       "vehicleFallback": "Véhicule {id}",
-      "formHint": "Choisissez le véhicule, saisissez le départ et l’arrivée, puis le prix fixe.",
+      "formHint": "Choisissez le véhicule, saisissez le départ et l’arrivée, le prix de référence et la grille par nombre de personnes.",
       "viewGrid": "Grille",
       "viewTable": "Tableau",
       "viewModeAria": "Mode d'affichage",

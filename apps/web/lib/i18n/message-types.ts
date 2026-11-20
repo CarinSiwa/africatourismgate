@@ -490,6 +490,10 @@ export type Translations = {
     seatsLabel: string;
     openTripsTitle: string;
     noOpenTrips: string;
+    openTripDatesTitle: string;
+    openTripDatesHint: string;
+    openTripDateTrips: string;
+    joinPaysInstead: string;
     createTripTitle: string;
     joinTrip: string;
     newTripOption: string;
