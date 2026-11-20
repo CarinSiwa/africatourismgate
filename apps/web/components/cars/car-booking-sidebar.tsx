@@ -184,7 +184,7 @@ function CarBookingContent({
           });
         }
         setOpenTripDates(
-          [...byDate.entries()]
+          Array.from(byDate.entries())
             .sort(([a], [b]) => a.localeCompare(b))
             .map(([date, stats]) => ({ date, ...stats })),
         );
