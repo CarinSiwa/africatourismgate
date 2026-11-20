@@ -3,7 +3,7 @@
 import type { VehicleTrip } from '@africatourismgate/types';
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { formatDisplayDate } from '../../lib/hotels/dates';
+import { formatDisplayDate, todayISODate } from '../../lib/hotels/dates';
 import { formatCarPrice } from '../../lib/cars/listings';
 import type { VehicleDetail } from '../../lib/cars/types';
 import type { Translations } from '../../lib/i18n/message-types';
@@ -74,6 +74,36 @@ function formatTripTime(iso: string, locale?: string): string {
   }).format(date);
 }
 
+/** UTC calendar day — matches API `DATE(departureDatetime)` filter. */
+function tripTravelDate(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) {
+    return '';
+  }
+  return date.toISOString().slice(0, 10);
+}
+
+type OpenTripDateOption = {
+  date: string;
+  tripCount: number;
+  seatsRemaining: number;
+  /** Best (lowest) join price among open trips that day. */
+  joinPriceCents: number;
+  currency: string;
+};
+
+function formatJoinPaysInstead(
+  template: string,
+  joinCents: number,
+  soloCents: number,
+  currency: string,
+): string | null {
+  if (!(joinCents < soloCents)) return null;
+  return template
+    .replace('{join}', formatCarPrice(joinCents, currency))
+    .replace('{solo}', formatCarPrice(soloCents, currency));
+}
+
 function CarBookingContent({
   detail,
   travelDate,
@@ -95,11 +125,80 @@ function CarBookingContent({
   );
   const [trips, setTrips] = useState<VehicleTrip[]>([]);
   const [tripsLoading, setTripsLoading] = useState(false);
+  const [openTripDates, setOpenTripDates] = useState<OpenTripDateOption[]>([]);
+  const [openTripDatesLoading, setOpenTripDatesLoading] = useState(false);
 
   useEffect(() => {
     setDepartureLocal(defaultDepartureLocal(travelDate));
     setSelectedTripId('new');
   }, [travelDate]);
+
+  useEffect(() => {
+    if (!detail.route?.id) {
+      setOpenTripDates([]);
+      return;
+    }
+    let cancelled = false;
+    setOpenTripDatesLoading(true);
+    void listPublicVehicleTrips({
+      vehicleId: detail.id,
+      routeId: detail.route.id,
+      status: 'open',
+      limit: 50,
+    })
+      .then((page) => {
+        if (cancelled) return;
+        const today = todayISODate();
+        const byDate = new Map<
+          string,
+          {
+            tripCount: number;
+            seatsRemaining: number;
+            joinPriceCents: number;
+            currency: string;
+          }
+        >();
+        for (const trip of page.data) {
+          if (!trip.canJoin) continue;
+          const date = tripTravelDate(trip.departureDatetime);
+          if (!date || date < today) continue;
+          const current = byDate.get(date);
+          if (!current) {
+            byDate.set(date, {
+              tripCount: 1,
+              seatsRemaining: Math.max(0, trip.seatsRemaining),
+              joinPriceCents: trip.priceCentsPerPerson,
+              currency: trip.currency,
+            });
+            continue;
+          }
+          byDate.set(date, {
+            tripCount: current.tripCount + 1,
+            seatsRemaining:
+              current.seatsRemaining + Math.max(0, trip.seatsRemaining),
+            joinPriceCents: Math.min(
+              current.joinPriceCents,
+              trip.priceCentsPerPerson,
+            ),
+            currency: current.currency || trip.currency,
+          });
+        }
+        setOpenTripDates(
+          [...byDate.entries()]
+            .sort(([a], [b]) => a.localeCompare(b))
+            .map(([date, stats]) => ({ date, ...stats })),
+        );
+      })
+      .catch(() => {
+        if (!cancelled) setOpenTripDates([]);
+      })
+      .finally(() => {
+        if (!cancelled) setOpenTripDatesLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [detail.id, detail.route?.id]);
 
   useEffect(() => {
     if (!hasDate || !detail.route?.id) {
@@ -153,6 +252,8 @@ function CarBookingContent({
     }
   }, [maxSeats, seats]);
 
+  const soloPriceCents =
+    detail.route?.priceCents ?? detail.totalPriceCents ?? detail.priceCents;
   const unitPriceCents = selectedTrip
     ? selectedTrip.priceCentsPerPerson
     : detail.totalPriceCents;
@@ -191,12 +292,69 @@ function CarBookingContent({
         <input
           type="date"
           value={travelDate}
+          min={todayISODate()}
           onChange={(e) => onTravelDateChange(e.target.value)}
           className={bookingSidebarInputClass}
         />
       </BookingSidebarField>
 
       {!hasDate && <BookingSidebarHint>{t.selectDatesHint}</BookingSidebarHint>}
+
+      {detail.route?.id && (openTripDatesLoading || openTripDates.length > 0) ? (
+        <div className="space-y-2">
+          <p className="text-xs font-semibold uppercase tracking-wide text-atg-muted">
+            {t.openTripDatesTitle}
+          </p>
+          {!openTripDatesLoading ? (
+            <BookingSidebarHint>{t.openTripDatesHint}</BookingSidebarHint>
+          ) : null}
+          {openTripDatesLoading ? (
+            <p className="text-sm text-atg-muted">{t.loading}</p>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {openTripDates.map((option) => {
+                const selected = travelDate === option.date;
+                const joinLabel = formatJoinPaysInstead(
+                  t.joinPaysInstead,
+                  option.joinPriceCents,
+                  soloPriceCents,
+                  option.currency || detail.currency,
+                );
+                return (
+                  <button
+                    key={option.date}
+                    type="button"
+                    onClick={() => onTravelDateChange(option.date)}
+                    aria-pressed={selected}
+                    className={`rounded-lg border px-3 py-1.5 text-left text-sm transition-colors ${
+                      selected
+                        ? 'border-primary bg-primary/5 text-atg-fg'
+                        : 'border-atg-border bg-atg-elevated text-atg-fg hover:border-primary/50'
+                    }`}
+                  >
+                    <span className="font-medium">
+                      {formatDisplayDate(option.date, locale)}
+                    </span>
+                    <span className="mt-0.5 block text-xs text-atg-muted">
+                      {t.openTripDateTrips.replace('{n}', String(option.tripCount))}
+                      {' · '}
+                      {t.seatsRemaining.replace(
+                        '{n}',
+                        String(option.seatsRemaining),
+                      )}
+                    </span>
+                    {joinLabel ? (
+                      <span className="mt-0.5 block text-xs font-medium text-primary">
+                        {joinLabel}
+                      </span>
+                    ) : null}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      ) : null}
 
       {hasDate && (
         <BookingSidebarSummary>
@@ -235,35 +393,48 @@ function CarBookingContent({
               <BookingSidebarHint>{t.noOpenTrips}</BookingSidebarHint>
             )}
             {!tripsLoading &&
-              trips.map((trip) => (
-                <label
-                  key={trip.id}
-                  className={`flex cursor-pointer flex-col gap-0.5 rounded-lg border px-3 py-2 text-sm transition-colors ${
-                    selectedTripId === trip.id
-                      ? 'border-primary bg-primary/5'
-                      : 'border-atg-border bg-atg-elevated'
-                  }`}
-                >
-                  <span className="flex items-center gap-2">
-                    <input
-                      type="radio"
-                      name="vehicle-trip"
-                      checked={selectedTripId === trip.id}
-                      onChange={() => setSelectedTripId(trip.id)}
-                    />
-                    <span className="font-medium text-atg-fg">
-                      {formatTripTime(trip.departureDatetime, locale)}
+              trips.map((trip) => {
+                const joinLabel = formatJoinPaysInstead(
+                  t.joinPaysInstead,
+                  trip.priceCentsPerPerson,
+                  soloPriceCents,
+                  trip.currency,
+                );
+                return (
+                  <label
+                    key={trip.id}
+                    className={`flex cursor-pointer flex-col gap-0.5 rounded-lg border px-3 py-2 text-sm transition-colors ${
+                      selectedTripId === trip.id
+                        ? 'border-primary bg-primary/5'
+                        : 'border-atg-border bg-atg-elevated'
+                    }`}
+                  >
+                    <span className="flex items-center gap-2">
+                      <input
+                        type="radio"
+                        name="vehicle-trip"
+                        checked={selectedTripId === trip.id}
+                        onChange={() => setSelectedTripId(trip.id)}
+                      />
+                      <span className="font-medium text-atg-fg">
+                        {formatTripTime(trip.departureDatetime, locale)}
+                      </span>
+                      <span className="text-atg-muted">
+                        · {formatCarPrice(trip.priceCentsPerPerson, trip.currency)}{' '}
+                        {t.pricePerPerson.toLowerCase()}
+                      </span>
                     </span>
-                    <span className="text-atg-muted">
-                      · {formatCarPrice(trip.priceCentsPerPerson, trip.currency)}{' '}
-                      {t.pricePerPerson.toLowerCase()}
+                    <span className="pl-6 text-xs text-atg-muted">
+                      {t.seatsRemaining.replace('{n}', String(trip.seatsRemaining))}
                     </span>
-                  </span>
-                  <span className="pl-6 text-xs text-atg-muted">
-                    {t.seatsRemaining.replace('{n}', String(trip.seatsRemaining))}
-                  </span>
-                </label>
-              ))}
+                    {joinLabel ? (
+                      <span className="pl-6 text-xs font-medium text-primary">
+                        {joinLabel}
+                      </span>
+                    ) : null}
+                  </label>
+                );
+              })}
 
             {trips.length === 0 ? (
               <label

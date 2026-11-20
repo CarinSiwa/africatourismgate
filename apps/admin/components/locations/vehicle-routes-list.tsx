@@ -22,6 +22,7 @@ import type {
   Vehicle,
   VehicleCategory,
   VehicleRoute,
+  VehicleRoutePriceTierInput,
 } from '@africatourismgate/types';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
@@ -39,6 +40,25 @@ const SEARCH_DEBOUNCE_MS = 300;
 
 type RoutesViewMode = 'grid' | 'table';
 
+type TierFormRow = {
+  key: string;
+  minPassengers: string;
+  maxPassengers: string;
+  priceCents: string;
+};
+
+type FormValues = {
+  vehicleId: string;
+  departureCity: string;
+  arrivalCity: string;
+  priceCents: string;
+  currency: string;
+  active: boolean;
+  tiers: TierFormRow[];
+};
+
+type FormFieldKey = keyof FormValues | 'tiers';
+
 function vehicleDesignation(
   vehicle: Vehicle | undefined,
   categoryById: Map<string, VehicleCategory>,
@@ -54,14 +74,18 @@ function vehicleDesignation(
   );
 }
 
-type FormValues = {
-  vehicleId: string;
-  departureCity: string;
-  arrivalCity: string;
-  priceCents: string;
-  currency: string;
-  active: boolean;
-};
+function newTierKey(): string {
+  return `tier-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function defaultTier(priceCents = ''): TierFormRow {
+  return {
+    key: newTierKey(),
+    minPassengers: '1',
+    maxPassengers: '1',
+    priceCents,
+  };
+}
 
 const emptyForm: FormValues = {
   vehicleId: '',
@@ -70,10 +94,48 @@ const emptyForm: FormValues = {
   priceCents: '',
   currency: FALLBACK_TREASURY_CURRENCY,
   active: true,
+  tiers: [defaultTier()],
 };
 
 function isRouteActive(route: VehicleRoute): boolean {
   return route.active !== 0;
+}
+
+function parseTiers(
+  rows: TierFormRow[],
+): { ok: true; tiers: VehicleRoutePriceTierInput[] } | { ok: false; error: string } {
+  if (!rows.length) {
+    return { ok: false, error: 'tierRequired' };
+  }
+  const tiers: VehicleRoutePriceTierInput[] = [];
+  for (const row of rows) {
+    const minPassengers = Number.parseInt(row.minPassengers, 10);
+    const maxPassengers = Number.parseInt(row.maxPassengers, 10);
+    const priceCents = Number(row.priceCents);
+    if (
+      !Number.isFinite(minPassengers) ||
+      !Number.isFinite(maxPassengers) ||
+      !Number.isFinite(priceCents) ||
+      minPassengers < 1 ||
+      maxPassengers < 1 ||
+      minPassengers > maxPassengers ||
+      priceCents < 0
+    ) {
+      return { ok: false, error: 'tierRangeInvalid' };
+    }
+    tiers.push({ minPassengers, maxPassengers, priceCents });
+  }
+  const sorted = [...tiers].sort((a, b) => a.minPassengers - b.minPassengers);
+  for (let i = 0; i < sorted.length; i += 1) {
+    for (let j = i + 1; j < sorted.length; j += 1) {
+      const a = sorted[i];
+      const b = sorted[j];
+      if (a.minPassengers <= b.maxPassengers && b.minPassengers <= a.maxPassengers) {
+        return { ok: false, error: 'tierOverlap' };
+      }
+    }
+  }
+  return { ok: true, tiers };
 }
 
 export function VehicleRoutesList() {
@@ -111,7 +173,7 @@ export function VehicleRoutesList() {
   const [formValues, setFormValues] = useState<FormValues>(emptyForm);
   const [formError, setFormError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<
-    Partial<Record<keyof FormValues, string>>
+    Partial<Record<FormFieldKey, string>>
   >({});
   const [submitting, setSubmitting] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -198,6 +260,7 @@ export function VehicleRoutesList() {
         limit: PAGE_SIZE,
         search: search || undefined,
         vehicleId: vehicleFilter || undefined,
+        includePriceTiers: true,
       });
       setState({
         status: 'ready',
@@ -242,7 +305,10 @@ export function VehicleRoutesList() {
   }
 
   function resetForm() {
-    setFormValues(emptyForm);
+    setFormValues({
+      ...emptyForm,
+      tiers: [defaultTier()],
+    });
     setEditing(null);
     setShowForm(false);
     setFormError(null);
@@ -255,6 +321,7 @@ export function VehicleRoutesList() {
       ...emptyForm,
       vehicleId: vehicleFilter,
       currency: FALLBACK_TREASURY_CURRENCY,
+      tiers: [defaultTier()],
     });
     setShowForm(true);
     setFormError(null);
@@ -263,6 +330,15 @@ export function VehicleRoutesList() {
 
   function openEdit(route: VehicleRoute) {
     setEditing(route);
+    const tiers =
+      route.priceTiers && route.priceTiers.length > 0
+        ? route.priceTiers.map((tier) => ({
+            key: tier.id,
+            minPassengers: String(tier.minPassengers),
+            maxPassengers: String(tier.maxPassengers),
+            priceCents: String(tier.priceCents),
+          }))
+        : [defaultTier(String(route.priceCents))];
     setFormValues({
       vehicleId: route.vehicleId,
       departureCity: route.departureCity,
@@ -270,6 +346,7 @@ export function VehicleRoutesList() {
       priceCents: String(route.priceCents),
       currency: route.currency,
       active: isRouteActive(route),
+      tiers,
     });
     setShowForm(true);
     setFormError(null);
@@ -277,7 +354,7 @@ export function VehicleRoutesList() {
   }
 
   function validate(): boolean {
-    const errors: Partial<Record<keyof FormValues, string>> = {};
+    const errors: Partial<Record<FormFieldKey, string>> = {};
     if (!editing && !formValues.vehicleId) {
       errors.vehicleId = t('validation.vehicleRequired');
     }
@@ -302,6 +379,10 @@ export function VehicleRoutesList() {
     if (formValues.currency.trim().length !== 3) {
       errors.currency = tCommon('validation.currencyThreeLettersExample');
     }
+    const tiersResult = parseTiers(formValues.tiers);
+    if (!tiersResult.ok) {
+      errors.tiers = tRoutes(`validation.${tiersResult.error}`);
+    }
     setFieldErrors(errors);
     return Object.keys(errors).length === 0;
   }
@@ -311,6 +392,9 @@ export function VehicleRoutesList() {
     setFormError(null);
     if (!validate()) return;
 
+    const tiersResult = parseTiers(formValues.tiers);
+    if (!tiersResult.ok) return;
+
     setSubmitting(true);
     try {
       const client = getApiClient();
@@ -318,14 +402,16 @@ export function VehicleRoutesList() {
       const currency = formValues.currency.trim().toUpperCase();
       const departureCity = formValues.departureCity.trim();
       const arrivalCity = formValues.arrivalCity.trim();
+      const payload = {
+        departureCity,
+        arrivalCity,
+        priceCents,
+        currency,
+        active: formValues.active,
+        priceTiers: tiersResult.tiers,
+      };
       if (editing) {
-        await client.updateVehicleRoute(editing.id, {
-          departureCity,
-          arrivalCity,
-          priceCents,
-          currency,
-          active: formValues.active,
-        });
+        await client.updateVehicleRoute(editing.id, payload);
         toast({
           variant: 'success',
           title: tToast('saved'),
@@ -334,11 +420,7 @@ export function VehicleRoutesList() {
       } else {
         await client.createVehicleRoute({
           vehicleId: formValues.vehicleId,
-          departureCity,
-          arrivalCity,
-          priceCents,
-          currency,
-          active: formValues.active,
+          ...payload,
         });
         toast({
           variant: 'success',
@@ -492,6 +574,16 @@ export function VehicleRoutesList() {
         ),
       },
       {
+        id: 'tiers',
+        header: tRoutes('columns.tiers'),
+        meta: { hideOnMobile: true },
+        cell: ({ row }) => (
+          <span className="text-sm text-atg-muted">
+            {tRoutes('tiersCount', { count: row.original.priceTiers?.length ?? 0 })}
+          </span>
+        ),
+      },
+      {
         id: 'visibility',
         header: tRoutes('columns.visibility'),
         meta: { hideOnMobile: true },
@@ -606,7 +698,7 @@ export function VehicleRoutesList() {
           title={editing ? tRoutes('editRoute') : tRoutes('newRoute')}
           showClose={!submitting}
           closeAriaLabel={tActions('close')}
-          className="max-w-lg"
+          className="max-w-2xl"
         >
           <form onSubmit={handleSubmit} className="space-y-4">
             <p className="text-xs text-atg-muted">
@@ -684,6 +776,7 @@ export function VehicleRoutesList() {
                   setFormValues((prev) => ({ ...prev, priceCents: e.target.value }))
                 }
                 error={fieldErrors.priceCents}
+                hint={tRoutes('priceCentsHint')}
                 required
               />
               <Select
@@ -695,6 +788,114 @@ export function VehicleRoutesList() {
                 }
                 error={fieldErrors.currency}
               />
+            </div>
+
+            <div className="space-y-3 rounded-xl border border-atg-border bg-atg-surface/40 p-3">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div>
+                  <p className="text-sm font-medium text-atg-fg">{tRoutes('tiersTitle')}</p>
+                  <p className="text-xs text-atg-muted">{tRoutes('tiersIntro')}</p>
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() =>
+                    setFormValues((prev) => ({
+                      ...prev,
+                      tiers: [
+                        ...prev.tiers,
+                        defaultTier(
+                          prev.priceCents || prev.tiers.at(-1)?.priceCents || '',
+                        ),
+                      ],
+                    }))
+                  }
+                >
+                  {tRoutes('addTier')}
+                </Button>
+              </div>
+              {fieldErrors.tiers ? (
+                <p role="alert" className="text-sm text-red-600 dark:text-red-400">
+                  {fieldErrors.tiers}
+                </p>
+              ) : null}
+              <div className="space-y-3">
+                {formValues.tiers.map((tier, index) => (
+                  <div
+                    key={tier.key}
+                    className="grid gap-2 rounded-lg border border-atg-border/70 bg-atg-surface p-3 sm:grid-cols-[1fr_1fr_1.4fr_auto]"
+                  >
+                    <Input
+                      label={tRoutes('tierMin')}
+                      type="number"
+                      min={1}
+                      value={tier.minPassengers}
+                      onChange={(e) =>
+                        setFormValues((prev) => ({
+                          ...prev,
+                          tiers: prev.tiers.map((row, i) =>
+                            i === index
+                              ? { ...row, minPassengers: e.target.value }
+                              : row,
+                          ),
+                        }))
+                      }
+                      required
+                    />
+                    <Input
+                      label={tRoutes('tierMax')}
+                      type="number"
+                      min={1}
+                      value={tier.maxPassengers}
+                      onChange={(e) =>
+                        setFormValues((prev) => ({
+                          ...prev,
+                          tiers: prev.tiers.map((row, i) =>
+                            i === index
+                              ? { ...row, maxPassengers: e.target.value }
+                              : row,
+                          ),
+                        }))
+                      }
+                      required
+                    />
+                    <Input
+                      label={tRoutes('tierPrice')}
+                      type="number"
+                      min={0}
+                      value={tier.priceCents}
+                      onChange={(e) =>
+                        setFormValues((prev) => ({
+                          ...prev,
+                          tiers: prev.tiers.map((row, i) =>
+                            i === index
+                              ? { ...row, priceCents: e.target.value }
+                              : row,
+                          ),
+                        }))
+                      }
+                      required
+                    />
+                    <div className="flex items-end">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        disabled={formValues.tiers.length <= 1}
+                        onClick={() =>
+                          setFormValues((prev) => ({
+                            ...prev,
+                            tiers: prev.tiers.filter((_, i) => i !== index),
+                          }))
+                        }
+                      >
+                        {tRoutes('removeTier')}
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
 
             <div className="flex items-start justify-between gap-4 rounded-xl border border-atg-border bg-atg-surface/50 px-4 py-3">
@@ -790,6 +991,11 @@ export function VehicleRoutesList() {
                         </p>
                         <p className="tabular-nums text-sm text-atg-muted">
                           {formatPrice(route.priceCents, route.currency)}
+                        </p>
+                        <p className="text-xs text-atg-muted">
+                          {tRoutes('tiersCount', {
+                            count: route.priceTiers?.length ?? 0,
+                          })}
                         </p>
                         <div className="pt-1">{renderVisibility(route)}</div>
                       </div>
