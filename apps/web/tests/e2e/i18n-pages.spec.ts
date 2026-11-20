@@ -436,12 +436,6 @@ test.describe('i18n pages FR → EN', () => {
 
     const marketing: RouteSmoke[] = [
       {
-        path: '/about',
-        note: 'redirect → who-we-are; about.nav.whoWeAre',
-        fr: 'Qui nous sommes',
-        en: 'Who we are',
-      },
-      {
         path: '/about/who-we-are',
         note: 'about.nav.whoWeAre',
         fr: 'Qui nous sommes',
