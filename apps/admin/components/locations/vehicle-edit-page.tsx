@@ -167,20 +167,20 @@ export function VehicleEditPage({ vehicleId }: VehicleEditPageProps) {
   const thumbnailLabel = vehicle.licensePlate ?? categoryName;
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+    <div className="min-w-0 space-y-6 overflow-x-hidden">
+      <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <AdminPageBackLink href="/produits/locations" label={t('backLink')} />
-        <div className="flex flex-wrap items-center gap-2">
-          <Button href={viewHref} variant="outline">
+        <div className="grid min-w-0 grid-cols-1 gap-2 sm:flex sm:flex-wrap sm:items-center">
+          <Button href={viewHref} variant="outline" className="w-full sm:w-auto">
             {t('viewButton')}
           </Button>
-          <Button href={availabilityHref} variant="outline">
+          <Button href={availabilityHref} variant="outline" className="w-full sm:w-auto">
             {tAvailability('title')}
           </Button>
         </div>
       </div>
 
-      <div className="flex flex-wrap items-start gap-4">
+      <div className="flex min-w-0 flex-col gap-4 rounded-xl border border-atg-border bg-atg-elevated p-4 sm:flex-row sm:items-start">
         <VehicleThumbnail
           vehicleId={vehicleId}
           label={thumbnailLabel}
@@ -188,9 +188,9 @@ export function VehicleEditPage({ vehicleId }: VehicleEditPageProps) {
           size="md"
         />
         <div className="min-w-0 flex-1 space-y-2">
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
             {vehicle.licensePlate ? (
-              <h2 className="font-mono text-xl font-semibold text-atg-fg">
+              <h2 className="min-w-0 break-all font-mono text-xl font-semibold text-atg-fg">
                 {vehicle.licensePlate}
               </h2>
             ) : (
@@ -198,8 +198,10 @@ export function VehicleEditPage({ vehicleId }: VehicleEditPageProps) {
                 {t('noLicensePlate')}
               </h2>
             )}
-            <DataTableBadge variant="muted">{agencyName}</DataTableBadge>
-            <DataTableBadge variant="default">{categoryName}</DataTableBadge>
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <DataTableBadge variant="muted">{agencyName}</DataTableBadge>
+              <DataTableBadge variant="default">{categoryName}</DataTableBadge>
+            </div>
           </div>
           <p className="tabular-nums text-sm font-semibold text-atg-fg">
             {minRoutePriceCents != null && routeCurrency

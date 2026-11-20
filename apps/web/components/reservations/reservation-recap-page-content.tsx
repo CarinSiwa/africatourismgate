@@ -5,6 +5,7 @@ import type {
   PropertyDetail,
   PublicMobileMoneyCountry,
   PublicPaymentBankAccount,
+  VehicleTrip,
 } from '@africatourismgate/types';
 import { Button, Spinner } from '@africatourismgate/ui';
 import Link from 'next/link';
@@ -19,6 +20,7 @@ import type { VehicleDetail } from '../../lib/cars/types';
 import { formatActivityPrice, formatScheduleTime } from '../../lib/activities/listings';
 import type { ActivityDetail } from '../../lib/activities/types';
 import { getAccommodationDetail, getActivityDetail, getCruiseSailingDetail, getFlightDetail, getPackageDetail, getVehicleDetail } from '../../lib/api/public';
+import { getPublicVehicleTrip } from '../../lib/api/vehicle-trips';
 import { formatPackagePrice } from '../../lib/packages/listings';
 import type { PackageDetail } from '../../lib/packages/types';
 import { formatAirportLabel } from '../../lib/flights/airports';
@@ -85,6 +87,7 @@ export function ReservationRecapPageContent({ draft }: Props) {
   const [hotelDetail, setHotelDetail] = useState<PropertyDetail | null>(null);
   const [flightDetail, setFlightDetail] = useState<FlightDetail | null>(null);
   const [vehicleDetail, setVehicleDetail] = useState<VehicleDetail | null>(null);
+  const [vehicleTrip, setVehicleTrip] = useState<VehicleTrip | null>(null);
   const [cruiseDetail, setCruiseDetail] = useState<CruiseSailingDetail | null>(null);
   const [activityDetail, setActivityDetail] = useState<ActivityDetail | null>(null);
   const [packageDetail, setPackageDetail] = useState<PackageDetail | null>(null);
@@ -247,13 +250,20 @@ export function ReservationRecapPageContent({ draft }: Props) {
           if (!cancelled) setLoading(false);
         });
     } else if (isVehicleReservationDraft(draft)) {
-      void getVehicleDetail(draft.vehicleId, {
-        routeId: draft.routeId,
-        travelDate: draft.travelDate,
-      })
-        .then((data) => {
+      const tripPromise = draft.vehicleTripId
+        ? getPublicVehicleTrip(draft.vehicleTripId)
+        : Promise.resolve(null);
+      void Promise.all([
+        getVehicleDetail(draft.vehicleId, {
+          routeId: draft.routeId,
+          travelDate: draft.travelDate,
+        }),
+        tripPromise,
+      ])
+        .then(([data, trip]) => {
           if (!cancelled) {
             setVehicleDetail(data);
+            setVehicleTrip(trip);
             setHotelDetail(null);
             setFlightDetail(null);
             setCruiseDetail(null);
@@ -288,9 +298,14 @@ export function ReservationRecapPageContent({ draft }: Props) {
 
   const vehicleReady = useMemo((): VehicleDetail | null => {
     if (!draft || !isVehicleReservationDraft(draft) || !vehicleDetail) return null;
+    if (draft.vehicleTripId) {
+      if (vehicleDetail.route.id !== draft.routeId) return null;
+      if (!vehicleTrip) return null;
+      return vehicleDetail;
+    }
     if (vehicleDetail.availabilitySlot?.id !== draft.availabilitySlotId) return null;
     return vehicleDetail;
-  }, [draft, vehicleDetail]);
+  }, [draft, vehicleDetail, vehicleTrip]);
 
   const cruiseCabin = useMemo(
     () =>
@@ -541,8 +556,14 @@ export function ReservationRecapPageContent({ draft }: Props) {
                   packageReservationTotalCents(packageDetail.pricing, draft.travelers),
                   packageDetail.pricing.currency,
                 )
-            : vehicleReady
-            ? formatCarPrice(vehicleReady.totalPriceCents, vehicleReady.currency)
+            : vehicleReady && isVehicleReservationDraft(draft!)
+            ? formatCarPrice(
+                draft!.vehicleTripId && vehicleTrip
+                  ? vehicleTrip.priceCentsPerPerson *
+                      (draft!.seats != null && draft!.seats >= 1 ? draft!.seats : 1)
+                  : vehicleReady.totalPriceCents,
+                vehicleTrip?.currency ?? vehicleReady.currency,
+              )
             : null;
 
   const canPay =
@@ -739,14 +760,28 @@ export function ReservationRecapPageContent({ draft }: Props) {
               <CheckoutRecapLine
                 icon="car"
                 eyebrow={vehicleReady.agency.name}
-                title={vehicleReady.category.exampleModel ?? vehicleReady.category.name}
+                title={`${vehicleReady.route.departureCity} → ${vehicleReady.route.arrivalCity}`}
                 details={
                   <>
                     <p>
-                      {vehicleReady.route.departureCity} →{' '}
-                      {vehicleReady.route.arrivalCity}
+                      {vehicleReady.category.exampleModel ?? vehicleReady.category.name}
                     </p>
                     <p>{formatDisplayDate(draft.travelDate, locale)}</p>
+                    {draft.vehicleTripId && vehicleTrip ? (
+                      <>
+                        <p>
+                          {new Intl.DateTimeFormat(locale || undefined, {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          }).format(new Date(vehicleTrip.departureDatetime))}
+                        </p>
+                        <p>
+                          {draft.seats != null && draft.seats > 1
+                            ? `${draft.seats} places`
+                            : '1 place'}
+                        </p>
+                      </>
+                    ) : null}
                   </>
                 }
                 price={totalLabel ?? undefined}

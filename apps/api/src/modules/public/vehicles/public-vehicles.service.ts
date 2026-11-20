@@ -48,8 +48,10 @@ export class PublicVehiclesService {
     private readonly destinationsRepository: Repository<Destinations>,
   ) {}
 
-  /** Free-text cities that appear as départ or arrivée on active tronçons. */
-  async listPickupLocations(): Promise<PublicDestinationDto[]> {
+  /** Unique active départ → arrivée pairs for the public cars search form. */
+  async listRouteOptions(): Promise<
+    { departureCity: string; arrivalCity: string }[]
+  > {
     const routes = await this.vehicleRoutesRepository
       .createQueryBuilder('route')
       .innerJoin(
@@ -58,14 +60,32 @@ export class PublicVehiclesService {
         'v.id = route.vehicleId AND v.deletedAt IS NULL',
       )
       .where('route.deletedAt IS NULL')
+      .andWhere('route.active = 1')
+      .orderBy('route.departureCity', 'ASC')
+      .addOrderBy('route.arrivalCity', 'ASC')
       .getMany();
 
-    const names = new Set<string>();
+    const seen = new Set<string>();
+    const pairs: { departureCity: string; arrivalCity: string }[] = [];
     for (const route of routes) {
-      const departure = route.departureCity?.trim();
-      const arrival = route.arrivalCity?.trim();
-      if (departure) names.add(departure);
-      if (arrival) names.add(arrival);
+      const departureCity = route.departureCity?.trim();
+      const arrivalCity = route.arrivalCity?.trim();
+      if (!departureCity || !arrivalCity) continue;
+      const key = `${departureCity.toLowerCase()}|${arrivalCity.toLowerCase()}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      pairs.push({ departureCity, arrivalCity });
+    }
+    return pairs;
+  }
+
+  /** Free-text cities that appear as départ or arrivée on catalogue-visible tronçons. */
+  async listPickupLocations(): Promise<PublicDestinationDto[]> {
+    const pairs = await this.listRouteOptions();
+    const names = new Set<string>();
+    for (const pair of pairs) {
+      names.add(pair.departureCity);
+      names.add(pair.arrivalCity);
     }
 
     return [...names]
@@ -98,6 +118,7 @@ export class PublicVehiclesService {
       .createQueryBuilder('route')
       .innerJoin(Vehicles, 'vehicle', 'vehicle.id = route.vehicleId')
       .where('route.deletedAt IS NULL')
+      .andWhere('route.active = 1')
       .andWhere('vehicle.deletedAt IS NULL');
 
     if (departureLocation) {
@@ -499,7 +520,12 @@ export class PublicVehiclesService {
       const route = await this.vehicleRoutesRepository.findOne({
         where: { id: query.routeId },
       });
-      if (!route || route.deletedAt || route.vehicleId !== vehicleId) {
+      if (
+        !route ||
+        route.deletedAt ||
+        route.active !== 1 ||
+        route.vehicleId !== vehicleId
+      ) {
         throw new NotFoundException('Tronçon introuvable pour ce véhicule.');
       }
       return route;
@@ -512,6 +538,7 @@ export class PublicVehiclesService {
         .createQueryBuilder('route')
         .where('route.vehicleId = :vehicleId', { vehicleId })
         .andWhere('route.deletedAt IS NULL')
+        .andWhere('route.active = 1')
         .andWhere('LOWER(route.departureCity) = LOWER(:departureCity)', {
           departureCity,
         })
@@ -531,6 +558,7 @@ export class PublicVehiclesService {
       .createQueryBuilder('route')
       .where('route.vehicleId = :vehicleId', { vehicleId })
       .andWhere('route.deletedAt IS NULL')
+      .andWhere('route.active = 1')
       .orderBy('route.priceCents', 'ASC')
       .getOne();
     if (!fallback) {

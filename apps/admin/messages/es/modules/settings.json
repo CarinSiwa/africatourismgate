@@ -40,6 +40,7 @@
       "paymentMethodsRequired": "Active al menos un método de pago.",
       "depositPercentInvalid": "El porcentaje de anticipo debe ser un entero entre 1 y 100.",
       "depositFixedInvalid": "El importe fijo de anticipo debe ser un número positivo (p. ej. 50.00).",
+      "paymentCloseHoursInvalid": "El plazo de cierre debe ser un entero entre 0 y 168 horas.",
       "maintenanceTitleTooLong": "El título no debe superar 200 caracteres.",
       "maintenanceMessageTooLong": "El mensaje no debe superar 2000 caracteres.",
       "maintenanceEndsAtInvalid": "La fecha de fin de mantenimiento no es válida."
@@ -88,6 +89,16 @@
         "depositPercentHint": "Entero entre 1 y 100 (p. ej. 30).",
         "depositFixed": "Importe fijo de anticipo",
         "depositFixedHint": "Importe en {currency} (p. ej. 50.00). Limitado al total de la reserva.",
+        "vehicleSharedTripTitle": "Viajes compartidos (alquiler)",
+        "vehicleSharedTripDescription": "Reglas para viajes compartidos en /cars: cierre de pagos antes de la salida y cuándo el primer reservante puede cambiar la hora.",
+        "paymentCloseHours": "Cierre de pagos (horas antes de la salida)",
+        "paymentCloseHoursHint": "Tras este plazo, no se puede unir ni pagar. Las plazas sin pagar se anulan (0–168, por defecto 3).",
+        "departureEditRule": "Edición de la hora de salida",
+        "departureEditRuleHint": "Hasta cuándo el primer reservante puede cambiar la hora del trayecto.",
+        "departureEditRules": {
+          "until_first_payment": "Mientras nadie haya pagado",
+          "until_payment_close": "Hasta el cierre de pagos"
+        },
         "itemTypes": {
           "room": "Alojamiento (habitación)",
           "flight_class": "Vuelo",

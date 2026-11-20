@@ -42,6 +42,26 @@ export function CarInfoSection({
       </h2>
 
       <dl className="mt-4 space-y-4 text-sm">
+        {(departureCity || arrivalCity) && (
+          <div>
+            <dt className="text-xs font-semibold uppercase tracking-wide text-atg-muted">
+              {t.routeLabel}
+            </dt>
+            <dd className="mt-1 font-medium text-atg-fg">
+              {departureCity ?? '—'} → {arrivalCity ?? '—'}
+            </dd>
+          </div>
+        )}
+
+        <div>
+          <dt className="text-xs font-semibold uppercase tracking-wide text-atg-muted">
+            {t.travelDate}
+          </dt>
+          <dd className="mt-1 font-medium text-atg-fg">
+            {formatDisplayDate(travelDate, locale)}
+          </dd>
+        </div>
+
         <div>
           <dt className="text-xs font-semibold uppercase tracking-wide text-atg-muted">
             {t.categoryTitle}
@@ -88,26 +108,6 @@ export function CarInfoSection({
           {agencyAddress ? (
             <dd className="mt-1 text-atg-muted">{agencyAddress}</dd>
           ) : null}
-        </div>
-
-        {(departureCity || arrivalCity) && (
-          <div>
-            <dt className="text-xs font-semibold uppercase tracking-wide text-atg-muted">
-              {t.routeLabel}
-            </dt>
-            <dd className="mt-1 font-medium text-atg-fg">
-              {departureCity ?? '—'} → {arrivalCity ?? '—'}
-            </dd>
-          </div>
-        )}
-
-        <div>
-          <dt className="text-xs font-semibold uppercase tracking-wide text-atg-muted">
-            {t.travelDate}
-          </dt>
-          <dd className="mt-1 font-medium text-atg-fg">
-            {formatDisplayDate(travelDate, locale)}
-          </dd>
         </div>
       </dl>
     </section>

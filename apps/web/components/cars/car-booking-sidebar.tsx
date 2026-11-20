@@ -1,12 +1,14 @@
 'use client';
 
+import type { VehicleTrip } from '@africatourismgate/types';
+import { useEffect, useMemo, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { formatDisplayDate } from '../../lib/hotels/dates';
 import { formatCarPrice } from '../../lib/cars/listings';
 import type { VehicleDetail } from '../../lib/cars/types';
 import type { Translations } from '../../lib/i18n/message-types';
-import { useState } from 'react';
 import { useBookingCtaLabel } from '../../lib/bookings/use-booking-cta';
-import { useTranslations } from 'next-intl';
+import { listPublicVehicleTrips } from '../../lib/api/vehicle-trips';
 import {
   BookingSidebarBody,
   BookingSidebarCta,
@@ -23,27 +25,165 @@ import {
   useBookingSidebarTrustHints,
 } from '../shared/booking-sidebar-shell';
 
+export type CarReservePayload =
+  | {
+      mode: 'create';
+      seats: number;
+      departureDatetime: string;
+    }
+  | {
+      mode: 'join';
+      seats: number;
+      tripId: string;
+    };
+
 type CarBookingSidebarProps = {
   detail: VehicleDetail;
   travelDate: string;
   onTravelDateChange: (value: string) => void;
-  onReserve: () => void;
+  onReserve: (payload: CarReservePayload) => void;
+  reserving?: boolean;
+  reserveError?: string | null;
   t: Translations['cars'];
   locale?: string;
 };
+
+function defaultDepartureLocal(travelDate: string): string {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(travelDate)) {
+    return '';
+  }
+  return `${travelDate}T09:00`;
+}
+
+function toIsoFromLocalInput(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+  return date.toISOString();
+}
+
+function formatTripTime(iso: string, locale?: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) {
+    return iso;
+  }
+  return new Intl.DateTimeFormat(locale || undefined, {
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date);
+}
 
 function CarBookingContent({
   detail,
   travelDate,
   onTravelDateChange,
   onReserve,
+  reserving = false,
+  reserveError = null,
   t,
   locale,
 }: CarBookingSidebarProps) {
   const trustHints = useBookingSidebarTrustHints();
   const ctaLabel = useBookingCtaLabel('vehicle');
   const hasDate = Boolean(travelDate);
-  const canReserve = hasDate && Boolean(detail.availabilitySlot?.id) && Boolean(detail.route?.id);
+
+  const [seats, setSeats] = useState(1);
+  const [selectedTripId, setSelectedTripId] = useState<string | 'new'>('new');
+  const [departureLocal, setDepartureLocal] = useState(() =>
+    defaultDepartureLocal(travelDate),
+  );
+  const [trips, setTrips] = useState<VehicleTrip[]>([]);
+  const [tripsLoading, setTripsLoading] = useState(false);
+
+  useEffect(() => {
+    setDepartureLocal(defaultDepartureLocal(travelDate));
+    setSelectedTripId('new');
+  }, [travelDate]);
+
+  useEffect(() => {
+    if (!hasDate || !detail.route?.id) {
+      setTrips([]);
+      return;
+    }
+    let cancelled = false;
+    setTripsLoading(true);
+    void listPublicVehicleTrips({
+      vehicleId: detail.id,
+      routeId: detail.route.id,
+      travelDate,
+      status: 'open',
+      limit: 20,
+    })
+      .then((page) => {
+        if (cancelled) return;
+        const open = page.data.filter((trip) => trip.canJoin);
+        setTrips(open);
+        setSelectedTripId(open.length > 0 ? open[0]!.id : 'new');
+      })
+      .catch(() => {
+        if (!cancelled) setTrips([]);
+      })
+      .finally(() => {
+        if (!cancelled) setTripsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [detail.id, detail.route?.id, travelDate, hasDate]);
+
+  const selectedTrip =
+    selectedTripId !== 'new'
+      ? trips.find((trip) => trip.id === selectedTripId) ?? null
+      : null;
+
+  const maxSeats = useMemo(() => {
+    if (selectedTrip) {
+      return Math.max(1, selectedTrip.seatsRemaining);
+    }
+    if (trips[0]?.maxCapacity) {
+      return Math.max(1, trips[0].maxCapacity);
+    }
+    return 8;
+  }, [selectedTrip, trips]);
+
+  useEffect(() => {
+    if (seats > maxSeats) {
+      setSeats(maxSeats);
+    }
+  }, [maxSeats, seats]);
+
+  const unitPriceCents = selectedTrip
+    ? selectedTrip.priceCentsPerPerson
+    : detail.totalPriceCents;
+  const currency = selectedTrip?.currency ?? detail.currency;
+  const lineTotalCents = unitPriceCents * seats;
+
+  const canReserve =
+    hasDate &&
+    Boolean(detail.route?.id) &&
+    !reserving &&
+    seats >= 1 &&
+    (selectedTripId === 'new'
+      ? Boolean(departureLocal) && Boolean(detail.availabilitySlot?.id)
+      : Boolean(selectedTrip?.canJoin));
+
+  function handleCta() {
+    if (!canReserve) return;
+    if (selectedTripId === 'new') {
+      onReserve({
+        mode: 'create',
+        seats,
+        departureDatetime: toIsoFromLocalInput(departureLocal),
+      });
+      return;
+    }
+    onReserve({
+      mode: 'join',
+      seats,
+      tripId: selectedTripId,
+    });
+  }
 
   return (
     <BookingSidebarBody title={t.reserveSection}>
@@ -67,14 +207,115 @@ function CarBookingContent({
       )}
 
       {hasDate ? (
-        <BookingSidebarPriceBlock
-          label={t.totalRental}
-          amount={formatCarPrice(detail.totalPriceCents, detail.currency)}
-          detail={t.routePriceLabel}
-        />
+        <>
+          <BookingSidebarField label={t.seatsLabel}>
+            <input
+              type="number"
+              min={1}
+              max={maxSeats}
+              value={seats}
+              onChange={(e) => {
+                const next = Number.parseInt(e.target.value, 10);
+                if (Number.isFinite(next) && next >= 1) {
+                  setSeats(Math.min(next, maxSeats));
+                }
+              }}
+              className={bookingSidebarInputClass}
+            />
+          </BookingSidebarField>
+
+          <div className="space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-atg-muted">
+              {t.openTripsTitle}
+            </p>
+            {tripsLoading && (
+              <p className="text-sm text-atg-muted">{t.loading}</p>
+            )}
+            {!tripsLoading && trips.length === 0 && (
+              <BookingSidebarHint>{t.noOpenTrips}</BookingSidebarHint>
+            )}
+            {!tripsLoading &&
+              trips.map((trip) => (
+                <label
+                  key={trip.id}
+                  className={`flex cursor-pointer flex-col gap-0.5 rounded-lg border px-3 py-2 text-sm transition-colors ${
+                    selectedTripId === trip.id
+                      ? 'border-primary bg-primary/5'
+                      : 'border-atg-border bg-atg-elevated'
+                  }`}
+                >
+                  <span className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="vehicle-trip"
+                      checked={selectedTripId === trip.id}
+                      onChange={() => setSelectedTripId(trip.id)}
+                    />
+                    <span className="font-medium text-atg-fg">
+                      {formatTripTime(trip.departureDatetime, locale)}
+                    </span>
+                    <span className="text-atg-muted">
+                      · {formatCarPrice(trip.priceCentsPerPerson, trip.currency)}{' '}
+                      {t.pricePerPerson.toLowerCase()}
+                    </span>
+                  </span>
+                  <span className="pl-6 text-xs text-atg-muted">
+                    {t.seatsRemaining.replace('{n}', String(trip.seatsRemaining))}
+                  </span>
+                </label>
+              ))}
+
+            {trips.length === 0 ? (
+              <label
+                className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm ${
+                  selectedTripId === 'new'
+                    ? 'border-primary bg-primary/5'
+                    : 'border-atg-border bg-atg-elevated'
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="vehicle-trip"
+                  checked={selectedTripId === 'new'}
+                  onChange={() => setSelectedTripId('new')}
+                />
+                <span className="font-medium text-atg-fg">{t.newTripOption}</span>
+              </label>
+            ) : null}
+          </div>
+
+          {selectedTripId === 'new' && trips.length === 0 ? (
+            <BookingSidebarField label={t.departureTime}>
+              <input
+                type="datetime-local"
+                value={departureLocal}
+                onChange={(e) => setDepartureLocal(e.target.value)}
+                className={bookingSidebarInputClass}
+              />
+            </BookingSidebarField>
+          ) : null}
+
+          <BookingSidebarPriceBlock
+            label={t.totalRental}
+            amount={formatCarPrice(lineTotalCents, currency)}
+            detail={`${formatCarPrice(unitPriceCents, currency)} · ${t.pricePerPerson}`}
+          />
+
+          <BookingSidebarHint>
+            {t.paymentClosesHint.replace('{hours}', '3')}
+          </BookingSidebarHint>
+        </>
       ) : null}
 
-      <BookingSidebarCta label={ctaLabel} disabled={!canReserve} onClick={onReserve} />
+      {reserveError ? (
+        <p className="text-sm text-red-600 dark:text-red-400">{reserveError}</p>
+      ) : null}
+
+      <BookingSidebarCta
+        label={reserving ? t.reservingTrip : ctaLabel}
+        disabled={!canReserve}
+        onClick={handleCta}
+      />
       <BookingSidebarTrustHints items={trustHints} />
     </BookingSidebarBody>
   );
@@ -93,10 +334,6 @@ export function CarBookingMobileBar(props: CarBookingSidebarProps) {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const ctaLabel = useBookingCtaLabel('vehicle');
   const hasDate = Boolean(props.travelDate);
-  const canReserve =
-    hasDate &&
-    Boolean(props.detail.availabilitySlot?.id) &&
-    Boolean(props.detail.route?.id);
 
   useBookingDrawerOpenListener(() => setDrawerOpen(true));
 
@@ -117,9 +354,9 @@ export function CarBookingMobileBar(props: CarBookingSidebarProps) {
             : undefined
         }
         hint={hasDate ? undefined : props.t.selectDatesHint}
-        ctaLabel={ctaLabel}
-        ctaDisabled={!canReserve}
-        onCtaClick={props.onReserve}
+        ctaLabel={props.reserving ? props.t.reservingTrip : ctaLabel}
+        ctaDisabled={props.reserving}
+        onCtaClick={() => setDrawerOpen(true)}
         configureLabel={tBooking('mobileConfigure')}
         onConfigureClick={() => setDrawerOpen(true)}
       />

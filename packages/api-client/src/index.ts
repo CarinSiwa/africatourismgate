@@ -29,7 +29,11 @@ import type {
   CreateVehicleCategoryRequest,
   CreateVehicleImageRequest,
   CreateVehicleRequest,
+  CreateVehicleRoutePriceTierRequest,
   CreateVehicleRouteRequest,
+  CreateVehicleTripRequest,
+  JoinVehicleTripRequest,
+  UpdateVehicleTripRequest,
   Cabin,
   CabinAvailability,
   CabinAvailabilityListQuery,
@@ -464,6 +468,7 @@ import type {
   UpdateVehicleCategoryRequest,
   UpdateVehicleImageRequest,
   UpdateVehicleRequest,
+  UpdateVehicleRoutePriceTierRequest,
   UpdateVehicleRouteRequest,
   Vehicle,
   VehicleAvailability,
@@ -473,7 +478,12 @@ import type {
   VehicleImage,
   VehicleImagesListQuery,
   VehicleRoute,
+  VehicleRoutePriceTier,
+  VehicleRoutePriceTierInput,
+  VehicleRoutePriceTiersListQuery,
   VehicleRoutesListQuery,
+  VehicleTrip,
+  VehicleTripsListQuery,
   VehiclesListQuery,
   UpdatePropertyImageRequest,
   UpdatePropertyRequest,
@@ -4779,6 +4789,88 @@ export class ApiClient {
 
   deleteVehicleRoute(id: string): Promise<void> {
     return this.request<void>(`/vehicle-routes/${id}`, { method: 'DELETE' });
+  }
+
+  listVehicleRoutePriceTiers(
+    query?: VehicleRoutePriceTiersListQuery,
+  ): Promise<PaginatedResponse<VehicleRoutePriceTier>> {
+    return fetchPaginated<VehicleRoutePriceTier>(
+      this,
+      '/vehicle-routes/price-tiers',
+      query,
+    );
+  }
+
+  createVehicleRoutePriceTier(
+    body: CreateVehicleRoutePriceTierRequest,
+  ): Promise<VehicleRoutePriceTier> {
+    return this.request<VehicleRoutePriceTier>('/vehicle-routes/price-tiers', {
+      method: 'POST',
+      body,
+    });
+  }
+
+  updateVehicleRoutePriceTier(
+    id: string,
+    body: UpdateVehicleRoutePriceTierRequest,
+  ): Promise<VehicleRoutePriceTier> {
+    return this.request<VehicleRoutePriceTier>(
+      `/vehicle-routes/price-tiers/${id}`,
+      { method: 'PATCH', body },
+    );
+  }
+
+  deleteVehicleRoutePriceTier(id: string): Promise<void> {
+    return this.request<void>(`/vehicle-routes/price-tiers/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  replaceVehicleRoutePriceTiers(
+    routeId: string,
+    priceTiers: VehicleRoutePriceTierInput[],
+  ): Promise<VehicleRoutePriceTier[]> {
+    return this.request<VehicleRoutePriceTier[]>(
+      `/vehicle-routes/${routeId}/price-tiers`,
+      { method: 'PUT', body: { priceTiers } },
+    );
+  }
+
+  listPublicVehicleTrips(
+    query?: VehicleTripsListQuery,
+  ): Promise<PaginatedResponse<VehicleTrip>> {
+    return fetchPaginated<VehicleTrip>(this, '/public/vehicle-trips', query);
+  }
+
+  getPublicVehicleTrip(id: string): Promise<VehicleTrip> {
+    return this.request<VehicleTrip>(`/public/vehicle-trips/${id}`);
+  }
+
+  createPublicVehicleTrip(body: CreateVehicleTripRequest): Promise<VehicleTrip> {
+    return this.request<VehicleTrip>('/public/vehicle-trips', {
+      method: 'POST',
+      body,
+    });
+  }
+
+  joinPublicVehicleTrip(
+    id: string,
+    body: JoinVehicleTripRequest = {},
+  ): Promise<VehicleTrip> {
+    return this.request<VehicleTrip>(`/public/vehicle-trips/${id}/join`, {
+      method: 'POST',
+      body,
+    });
+  }
+
+  updatePublicVehicleTrip(
+    id: string,
+    body: UpdateVehicleTripRequest,
+  ): Promise<VehicleTrip> {
+    return this.request<VehicleTrip>(`/public/vehicle-trips/${id}`, {
+      method: 'PATCH',
+      body,
+    });
   }
 
   listVehicleAvailability(

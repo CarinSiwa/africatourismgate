@@ -9,10 +9,12 @@ import {
   DataTable,
   DataTableActionButton,
   DataTableActions,
+  DataTableBadge,
   DataTablePagination,
   Input,
   Modal,
   Select,
+  Switch,
   useToast,
   type ColumnDef,
 } from '@africatourismgate/ui';
@@ -58,6 +60,7 @@ type FormValues = {
   arrivalCity: string;
   priceCents: string;
   currency: string;
+  active: boolean;
 };
 
 const emptyForm: FormValues = {
@@ -66,7 +69,12 @@ const emptyForm: FormValues = {
   arrivalCity: '',
   priceCents: '',
   currency: FALLBACK_TREASURY_CURRENCY,
+  active: true,
 };
+
+function isRouteActive(route: VehicleRoute): boolean {
+  return route.active !== 0;
+}
 
 export function VehicleRoutesList() {
   const { locations: getLocationsErrorMessage } = useAdminErrorMessages();
@@ -107,6 +115,7 @@ export function VehicleRoutesList() {
   >({});
   const [submitting, setSubmitting] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
   const [confirmTarget, setConfirmTarget] = useState<VehicleRoute | null>(null);
 
   const { options: currencyOptions } = useActiveCurrencies({
@@ -260,6 +269,7 @@ export function VehicleRoutesList() {
       arrivalCity: route.arrivalCity,
       priceCents: String(route.priceCents),
       currency: route.currency,
+      active: isRouteActive(route),
     });
     setShowForm(true);
     setFormError(null);
@@ -314,6 +324,7 @@ export function VehicleRoutesList() {
           arrivalCity,
           priceCents,
           currency,
+          active: formValues.active,
         });
         toast({
           variant: 'success',
@@ -327,6 +338,7 @@ export function VehicleRoutesList() {
           arrivalCity,
           priceCents,
           currency,
+          active: formValues.active,
         });
         toast({
           variant: 'success',
@@ -368,6 +380,55 @@ export function VehicleRoutesList() {
       setDeletingId(null);
     }
   }
+
+  const handleToggleActive = useCallback(
+    async (route: VehicleRoute) => {
+      const nextActive = !isRouteActive(route);
+      setTogglingId(route.id);
+      try {
+        await getApiClient().updateVehicleRoute(route.id, { active: nextActive });
+        toast({
+          variant: 'success',
+          title: tToast('saved'),
+          message: `${route.departureCity} → ${route.arrivalCity} · ${
+            nextActive ? tRoutes('statusVisible') : tRoutes('statusHidden')
+          }`,
+        });
+        await load();
+      } catch (error) {
+        toast({
+          variant: 'error',
+          title: tToast('saveError'),
+          message: getLocationsErrorMessage(error),
+        });
+      } finally {
+        setTogglingId(null);
+      }
+    },
+    [getLocationsErrorMessage, load, tRoutes, tToast, toast],
+  );
+
+  const renderVisibility = useCallback(
+    (route: VehicleRoute) => {
+      const active = isRouteActive(route);
+      return (
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <DataTableBadge variant={active ? 'success' : 'muted'}>
+            {active ? tRoutes('statusVisible') : tRoutes('statusHidden')}
+          </DataTableBadge>
+          <Switch
+            checked={active}
+            disabled={togglingId === route.id}
+            onChange={() => {
+              void handleToggleActive(route);
+            }}
+            aria-label={tRoutes('toggleActiveAria')}
+          />
+        </div>
+      );
+    },
+    [handleToggleActive, tRoutes, togglingId],
+  );
 
   const renderActions = useCallback(
     (route: VehicleRoute) => (
@@ -431,13 +492,28 @@ export function VehicleRoutesList() {
         ),
       },
       {
+        id: 'visibility',
+        header: tRoutes('columns.visibility'),
+        meta: { hideOnMobile: true },
+        cell: ({ row }) => renderVisibility(row.original),
+      },
+      {
         id: 'actions',
         header: tCommon('columns.actions'),
         meta: { align: 'right', cellClassName: 'w-[5.5rem] sm:w-auto' },
         cell: ({ row }) => renderActions(row.original),
       },
     ],
-    [categoryById, formatPrice, renderActions, t, tCommon, tRoutes, vehicleById],
+    [
+      categoryById,
+      formatPrice,
+      renderActions,
+      renderVisibility,
+      t,
+      tCommon,
+      tRoutes,
+      vehicleById,
+    ],
   );
 
   const routes = state.status === 'ready' ? state.routes : [];
@@ -621,6 +697,25 @@ export function VehicleRoutesList() {
               />
             </div>
 
+            <div className="flex items-start justify-between gap-4 rounded-xl border border-atg-border bg-atg-surface/50 px-4 py-3">
+              <div className="min-w-0 space-y-1">
+                <p className="text-sm font-medium text-atg-fg">
+                  {tRoutes('activeLabel')}
+                </p>
+                <p className="text-xs leading-relaxed text-atg-muted">
+                  {tRoutes('activeHint')}
+                </p>
+              </div>
+              <Switch
+                checked={formValues.active}
+                onChange={(e) =>
+                  setFormValues((prev) => ({ ...prev, active: e.target.checked }))
+                }
+                disabled={submitting}
+                aria-label={tRoutes('activeLabel')}
+              />
+            </div>
+
             <div className="flex justify-end gap-3 pt-1">
               <Button
                 type="button"
@@ -696,6 +791,7 @@ export function VehicleRoutesList() {
                         <p className="tabular-nums text-sm text-atg-muted">
                           {formatPrice(route.priceCents, route.currency)}
                         </p>
+                        <div className="pt-1">{renderVisibility(route)}</div>
                       </div>
                       <div className="mt-auto flex min-w-0 justify-end border-t border-atg-border pt-3">
                         {renderActions(route)}

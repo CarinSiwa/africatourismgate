@@ -54,6 +54,8 @@ export interface Vehicle {
   categoryId: string;
   licensePlate: string | null;
   currency: string;
+  /** Max seats for shared trips (/cars). */
+  maxPassengers: number;
   /** NULL = catalogue partagé (toutes orgs). */
   organizationId: string | null;
   createdAt: string;
@@ -65,6 +67,8 @@ export interface CreateVehicleRequest {
   categoryId: string;
   licensePlate?: string;
   currency: string;
+  /** Defaults to 4. */
+  maxPassengers?: number;
   organizationId?: string | null;
 }
 
@@ -144,7 +148,50 @@ export interface VehicleAvailabilityListQuery {
   endTo?: string;
 }
 
-/** Tronçon tarifé : ville départ → ville arrivée (texte libre) pour un véhicule. */
+/** Active public catalogue OD pair for the /cars search form. */
+export interface VehicleRouteOption {
+  departureCity: string;
+  arrivalCity: string;
+}
+
+/**
+ * Per-person price for a passenger-count band on a tronçon.
+ * Example: min=2, max=4, priceCents=7000 → 70.00 per person when N∈[2,4].
+ */
+export interface VehicleRoutePriceTier {
+  id: string;
+  routeId: string;
+  minPassengers: number;
+  maxPassengers: number;
+  priceCents: number;
+  createdAt: string;
+  updatedAt: string | null;
+}
+
+export interface VehicleRoutePriceTierInput {
+  minPassengers: number;
+  maxPassengers: number;
+  priceCents: number;
+}
+
+export interface CreateVehicleRoutePriceTierRequest extends VehicleRoutePriceTierInput {
+  routeId: string;
+}
+
+export type UpdateVehicleRoutePriceTierRequest = Partial<VehicleRoutePriceTierInput>;
+
+export interface VehicleRoutePriceTiersListQuery {
+  page?: number;
+  limit?: number;
+  routeId?: string;
+}
+
+/**
+ * Tronçon tarifé : ville départ → ville arrivée (texte libre) pour un véhicule.
+ * `active` gates the public /cars catalogue only — inactive routes remain
+ * selectable in package products (`item_type: 'troncon'`).
+ * `priceCents` remains the legacy / package fallback (often the 1-person tier).
+ */
 export interface VehicleRoute {
   id: string;
   vehicleId: string;
@@ -152,6 +199,10 @@ export interface VehicleRoute {
   arrivalCity: string;
   priceCents: number;
   currency: string;
+  /** 1 = visible on /cars; 0 = hidden from /cars (packages still OK). */
+  active: number;
+  /** Present when the API loads tiers with the route. */
+  priceTiers?: VehicleRoutePriceTier[];
   createdAt: string;
   updatedAt: string | null;
 }
@@ -162,6 +213,10 @@ export interface CreateVehicleRouteRequest {
   arrivalCity: string;
   priceCents: number;
   currency: string;
+  /** Defaults to true (visible on /cars). Packages ignore this flag. */
+  active?: boolean;
+  /** When omitted on create, a 1–1 tier is seeded from `priceCents`. */
+  priceTiers?: VehicleRoutePriceTierInput[];
 }
 
 export type UpdateVehicleRouteRequest = Partial<
@@ -175,4 +230,64 @@ export interface VehicleRoutesListQuery {
   departureCity?: string;
   arrivalCity?: string;
   search?: string;
+  /** Filter by /cars catalogue visibility. */
+  active?: boolean;
+  /** When true, each route includes `priceTiers`. */
+  includePriceTiers?: boolean;
+}
+
+export type VehicleTripStatus =
+  | 'open'
+  | 'payment_closed'
+  | 'completed'
+  | 'cancelled';
+
+export interface VehicleTrip {
+  id: string;
+  vehicleId: string;
+  routeId: string;
+  availabilityId: string;
+  departureDatetime: string;
+  createdByUserId: string | null;
+  maxCapacity: number;
+  seatsReserved: number;
+  seatsRemaining: number;
+  status: VehicleTripStatus;
+  /** Per-person price for current seatsReserved (or preview N). */
+  priceCentsPerPerson: number;
+  currency: string;
+  departureCity: string;
+  arrivalCity: string;
+  paymentClosesAt: string;
+  canJoin: boolean;
+  canEditDeparture: boolean;
+  createdAt: string;
+  updatedAt: string | null;
+}
+
+export interface VehicleTripsListQuery {
+  routeId?: string;
+  vehicleId?: string;
+  /** YYYY-MM-DD — trips departing that calendar day */
+  travelDate?: string;
+  status?: VehicleTripStatus;
+  page?: number;
+  limit?: number;
+}
+
+export interface CreateVehicleTripRequest {
+  vehicleId: string;
+  routeId: string;
+  /** ISO datetime of departure (set by first booker). */
+  departureDatetime: string;
+  /** Seats to reserve for the first booker (default 1). */
+  seats?: number;
+}
+
+export interface JoinVehicleTripRequest {
+  seats?: number;
+}
+
+export interface UpdateVehicleTripRequest {
+  departureDatetime: string;
 }

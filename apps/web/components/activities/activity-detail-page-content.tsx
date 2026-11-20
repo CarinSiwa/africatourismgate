@@ -196,7 +196,6 @@ export function ActivityDetailPageContent({
         participants,
         onParticipantsChange: handleParticipantsChange,
         onReserve: handleReserve,
-        preferBookingRequest,
         t: a,
         locale,
       }

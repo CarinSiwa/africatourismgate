@@ -862,6 +862,7 @@ CREATE TABLE `vehicles` (
   `category_id` CHAR(36) NOT NULL,
   `license_plate` VARCHAR(32) DEFAULT NULL,
   `currency` CHAR(3) NOT NULL DEFAULT 'USD',
+  `max_passengers` INT UNSIGNED NOT NULL DEFAULT 4,
   `organization_id` CHAR(36) DEFAULT NULL,
   `created_by_user_id` CHAR(36) DEFAULT NULL,
   `updated_by_user_id` CHAR(36) DEFAULT NULL,
@@ -889,6 +890,8 @@ CREATE TABLE `vehicle_routes` (
   `arrival_city` VARCHAR(120) NOT NULL,
   `price_cents` INT UNSIGNED NOT NULL,
   `currency` CHAR(3) NOT NULL DEFAULT 'USD',
+  -- 1 = visible on public /cars; 0 = hidden from /cars but still usable in packages
+  `active` TINYINT(1) NOT NULL DEFAULT 1,
   `created_by_user_id` CHAR(36) DEFAULT NULL,
   `updated_by_user_id` CHAR(36) DEFAULT NULL,
   `deleted_by_user_id` CHAR(36) DEFAULT NULL,
@@ -900,11 +903,34 @@ CREATE TABLE `vehicle_routes` (
   KEY `idx_vehicle_routes_vehicle` (`vehicle_id`),
   KEY `idx_vehicle_routes_departure` (`departure_city`),
   KEY `idx_vehicle_routes_arrival` (`arrival_city`),
+  KEY `idx_vehicle_routes_active` (`active`),
   KEY `idx_vehicle_routes_deleted_at` (`deleted_at`),
   CONSTRAINT `fk_vehicle_routes_vehicle` FOREIGN KEY (`vehicle_id`) REFERENCES `vehicles` (`id`) ON DELETE CASCADE,
   CONSTRAINT `fk_vehicle_routes_created_by` FOREIGN KEY (`created_by_user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL,
   CONSTRAINT `fk_vehicle_routes_updated_by` FOREIGN KEY (`updated_by_user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL,
   CONSTRAINT `fk_vehicle_routes_deleted_by` FOREIGN KEY (`deleted_by_user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Per-person price tiers by passenger count band (shared trips on /cars)
+CREATE TABLE `vehicle_route_price_tiers` (
+  `id` CHAR(36) NOT NULL,
+  `route_id` CHAR(36) NOT NULL,
+  `min_passengers` SMALLINT UNSIGNED NOT NULL,
+  `max_passengers` SMALLINT UNSIGNED NOT NULL,
+  `price_cents` INT UNSIGNED NOT NULL,
+  `created_by_user_id` CHAR(36) DEFAULT NULL,
+  `updated_by_user_id` CHAR(36) DEFAULT NULL,
+  `deleted_by_user_id` CHAR(36) DEFAULT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
+  `deleted_at` DATETIME DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_vrpt_route` (`route_id`),
+  KEY `idx_vrpt_deleted_at` (`deleted_at`),
+  CONSTRAINT `fk_vrpt_route` FOREIGN KEY (`route_id`) REFERENCES `vehicle_routes` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_vrpt_created_by` FOREIGN KEY (`created_by_user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_vrpt_updated_by` FOREIGN KEY (`updated_by_user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_vrpt_deleted_by` FOREIGN KEY (`deleted_by_user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE `vehicle_images` (
@@ -949,6 +975,36 @@ CREATE TABLE `vehicle_availability` (
   CONSTRAINT `fk_vehicle_availability_created_by` FOREIGN KEY (`created_by_user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL,
   CONSTRAINT `fk_vehicle_availability_updated_by` FOREIGN KEY (`updated_by_user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL,
   CONSTRAINT `fk_vehicle_availability_deleted_by` FOREIGN KEY (`deleted_by_user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Shared OD trip: first booker sets departure time; others join seats
+CREATE TABLE `vehicle_trips` (
+  `id` CHAR(36) NOT NULL,
+  `vehicle_id` CHAR(36) NOT NULL,
+  `route_id` CHAR(36) NOT NULL,
+  `availability_id` CHAR(36) NOT NULL,
+  `departure_datetime` DATETIME NOT NULL,
+  `created_by_user_id` CHAR(36) NOT NULL,
+  `max_capacity` SMALLINT UNSIGNED NOT NULL,
+  `seats_reserved` SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+  `status` ENUM('open','payment_closed','completed','cancelled') NOT NULL DEFAULT 'open',
+  `updated_by_user_id` CHAR(36) DEFAULT NULL,
+  `deleted_by_user_id` CHAR(36) DEFAULT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
+  `deleted_at` DATETIME DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_vehicle_trips_vehicle_departure` (`vehicle_id`, `departure_datetime`),
+  KEY `idx_vehicle_trips_route_status` (`route_id`, `status`),
+  KEY `idx_vehicle_trips_status_departure` (`status`, `departure_datetime`),
+  KEY `idx_vehicle_trips_availability` (`availability_id`),
+  KEY `idx_vehicle_trips_deleted_at` (`deleted_at`),
+  CONSTRAINT `fk_vehicle_trips_vehicle` FOREIGN KEY (`vehicle_id`) REFERENCES `vehicles` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_vehicle_trips_route` FOREIGN KEY (`route_id`) REFERENCES `vehicle_routes` (`id`) ON DELETE RESTRICT,
+  CONSTRAINT `fk_vehicle_trips_availability` FOREIGN KEY (`availability_id`) REFERENCES `vehicle_availability` (`id`) ON DELETE RESTRICT,
+  CONSTRAINT `fk_vehicle_trips_created_by` FOREIGN KEY (`created_by_user_id`) REFERENCES `users` (`id`) ON DELETE RESTRICT,
+  CONSTRAINT `fk_vehicle_trips_updated_by` FOREIGN KEY (`updated_by_user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_vehicle_trips_deleted_by` FOREIGN KEY (`deleted_by_user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- -----------------------------------------------------------------------------
@@ -1451,6 +1507,8 @@ CREATE TABLE `booking_items` (
   `booking_id` CHAR(36) NOT NULL,
   `item_type` ENUM('room','flight_class','vehicle','cabin','activity_schedule','package') NOT NULL,
   `reference_id` CHAR(36) NOT NULL,
+  `vehicle_trip_id` CHAR(36) DEFAULT NULL,
+  `route_id` CHAR(36) DEFAULT NULL,
   `title_snapshot` VARCHAR(255) NOT NULL,
   `quantity` SMALLINT UNSIGNED NOT NULL DEFAULT 1,
   `unit_price_cents` INT UNSIGNED NOT NULL,
@@ -1464,8 +1522,12 @@ CREATE TABLE `booking_items` (
   `deleted_at` DATETIME DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `idx_booking_items_booking` (`booking_id`),
+  KEY `idx_booking_items_vehicle_trip` (`vehicle_trip_id`),
+  KEY `idx_booking_items_route` (`route_id`),
   KEY `idx_booking_items_deleted_at` (`deleted_at`),
   CONSTRAINT `fk_booking_items_booking` FOREIGN KEY (`booking_id`) REFERENCES `bookings` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_booking_items_vehicle_trip` FOREIGN KEY (`vehicle_trip_id`) REFERENCES `vehicle_trips` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_booking_items_route` FOREIGN KEY (`route_id`) REFERENCES `vehicle_routes` (`id`) ON DELETE SET NULL,
   CONSTRAINT `fk_booking_items_created_by` FOREIGN KEY (`created_by_user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL,
   CONSTRAINT `fk_booking_items_updated_by` FOREIGN KEY (`updated_by_user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL,
   CONSTRAINT `fk_booking_items_deleted_by` FOREIGN KEY (`deleted_by_user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL

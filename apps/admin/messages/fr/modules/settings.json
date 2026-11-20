@@ -40,6 +40,7 @@
       "paymentMethodsRequired": "Activez au moins un moyen de paiement.",
       "depositPercentInvalid": "Le pourcentage d’acompte doit être un entier entre 1 et 100.",
       "depositFixedInvalid": "Le montant fixe d’acompte doit être un nombre positif (ex. 50.00).",
+      "paymentCloseHoursInvalid": "Le délai de clôture doit être un entier entre 0 et 168 heures.",
       "maintenanceTitleTooLong": "Le titre ne doit pas dépasser 200 caractères.",
       "maintenanceMessageTooLong": "Le message ne doit pas dépasser 2000 caractères.",
       "maintenanceEndsAtInvalid": "La date de fin de maintenance est invalide."
@@ -88,6 +89,16 @@
         "depositPercentHint": "Entier entre 1 et 100 (ex. 30).",
         "depositFixed": "Montant fixe d’acompte",
         "depositFixedHint": "Montant en {currency} (ex. 50.00). Plafonné au total de la réservation.",
+        "vehicleSharedTripTitle": "Trajets partagés (locations)",
+        "vehicleSharedTripDescription": "Règles pour les trajets véhicule partagés sur /cars : clôture des paiements avant le départ et modification de l’heure par le premier réservant.",
+        "paymentCloseHours": "Clôture des paiements (heures avant départ)",
+        "paymentCloseHoursHint": "Après ce délai, plus de rejoindre ni de payer. Les places non payées sont annulées (0–168, défaut 3).",
+        "departureEditRule": "Modification de l’heure de départ",
+        "departureEditRuleHint": "Jusqu’à quand le premier réservant peut changer l’heure du trajet.",
+        "departureEditRules": {
+          "until_first_payment": "Tant que personne n’a payé",
+          "until_payment_close": "Jusqu’à la clôture des paiements"
+        },
         "itemTypes": {
           "room": "Hébergement (chambre)",
           "flight_class": "Vol",

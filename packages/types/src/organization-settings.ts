@@ -9,6 +9,68 @@ export interface BookingDefaultsValue {
   allowGuestCheckout: boolean;
 }
 
+/**
+ * Shared vehicle trips — `organization_settings` group `booking`, key `vehicle_shared_trip`.
+ */
+export const VEHICLE_SHARED_TRIP_DEPARTURE_EDIT_RULES = [
+  'until_first_payment',
+  'until_payment_close',
+] as const;
+
+export type VehicleSharedTripDepartureEditRule =
+  (typeof VEHICLE_SHARED_TRIP_DEPARTURE_EDIT_RULES)[number];
+
+export interface VehicleSharedTripSettingValue {
+  /** Hours before departure when join/payment close (default 3). */
+  paymentCloseHoursBeforeDeparture: number;
+  /** When the first booker may still change departure time. */
+  departureTimeEditableUntil: VehicleSharedTripDepartureEditRule;
+}
+
+export type ResolvedVehicleSharedTrip = VehicleSharedTripSettingValue;
+
+export const DEFAULT_VEHICLE_SHARED_TRIP: ResolvedVehicleSharedTrip = {
+  paymentCloseHoursBeforeDeparture: 3,
+  departureTimeEditableUntil: 'until_payment_close',
+};
+
+export function isVehicleSharedTripDepartureEditRule(
+  value: unknown,
+): value is VehicleSharedTripDepartureEditRule {
+  return (
+    typeof value === 'string' &&
+    (VEHICLE_SHARED_TRIP_DEPARTURE_EDIT_RULES as readonly string[]).includes(value)
+  );
+}
+
+export function normalizeVehicleSharedTrip(
+  value?: Partial<VehicleSharedTripSettingValue> | null,
+): ResolvedVehicleSharedTrip {
+  if (!value || typeof value !== 'object') {
+    return { ...DEFAULT_VEHICLE_SHARED_TRIP };
+  }
+
+  const hours = value.paymentCloseHoursBeforeDeparture;
+  const paymentCloseHoursBeforeDeparture =
+    typeof hours === 'number' &&
+    Number.isInteger(hours) &&
+    hours >= 0 &&
+    hours <= 168
+      ? hours
+      : DEFAULT_VEHICLE_SHARED_TRIP.paymentCloseHoursBeforeDeparture;
+
+  const departureTimeEditableUntil = isVehicleSharedTripDepartureEditRule(
+    value.departureTimeEditableUntil,
+  )
+    ? value.departureTimeEditableUntil
+    : DEFAULT_VEHICLE_SHARED_TRIP.departureTimeEditableUntil;
+
+  return {
+    paymentCloseHoursBeforeDeparture,
+    departureTimeEditableUntil,
+  };
+}
+
 export interface BrandingPlatformValue {
   displayName: string;
   primaryColor?: string;

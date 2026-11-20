@@ -7,6 +7,7 @@ import type {
   PropertySearchResult,
   PublicDestination,
   PublicDestinationHighlight,
+  VehicleRouteOption,
   Review,
   PublicBlogPostDetail,
   PublicBlogPostListItem,
@@ -185,6 +186,10 @@ export async function listFeaturedDestinations(
 
 export async function listVehiclePickupLocations(): Promise<PublicDestination[]> {
   return fetchPublic<PublicDestination[]>('/public/vehicles/pickup-locations');
+}
+
+export async function listVehicleRouteOptions(): Promise<VehicleRouteOption[]> {
+  return fetchPublic<VehicleRouteOption[]>('/public/vehicles/route-options');
 }
 
 export async function listActivityDestinations(): Promise<PublicDestination[]> {

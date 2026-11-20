@@ -5,8 +5,12 @@ import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { getVehicleDetail } from '../../lib/api/public';
 import {
+  createPublicVehicleTrip,
+  joinPublicVehicleTrip,
+} from '../../lib/api/vehicle-trips';
+import { ensureClientAccessToken } from '../../lib/auth/client-session';
+import {
   buildCarDetailHref,
-  buildCarsSearchQuery,
   toVehicleDetailQuery,
   type CarDetailSearchParams,
 } from '../../lib/cars/listings';
@@ -21,7 +25,11 @@ import { HomeHeader } from '../home/home-header';
 import { DetailPageSkeletonShell } from '../shared/loading-skeletons';
 import { scrollToBookingSidebar } from '../shared/booking-sidebar-shell';
 import { ProductGallery } from '../shared';
-import { CarBookingMobileBar, CarBookingSidebar } from './car-booking-sidebar';
+import {
+  CarBookingMobileBar,
+  CarBookingSidebar,
+  type CarReservePayload,
+} from './car-booking-sidebar';
 import { CarConditionsSection } from './car-conditions-section';
 import { CarEquipmentSection } from './car-equipment-section';
 import { CarHeroMedia } from './car-hero-media';
@@ -51,6 +59,8 @@ export function CarDetailPageContent({
 
   const [travelDate, setTravelDate] = useState(initialSearch.travelDate ?? '');
   const [routeId, setRouteId] = useState(initialSearch.routeId ?? '');
+  const [reserving, setReserving] = useState(false);
+  const [reserveError, setReserveError] = useState<string | null>(null);
 
   const searchContext: CarDetailSearchParams = {
     routeId: routeId || undefined,
@@ -124,28 +134,59 @@ export function CarDetailPageContent({
     syncUrl({ travelDate: value || undefined });
   }
 
-  function handleReserve() {
+  async function handleReserve(payload: CarReservePayload) {
     if (!travelDate) {
       scrollToBookingSidebar({ openDrawer: true });
       return;
     }
-    if (!detail?.availabilitySlot?.id || !detail.route?.id) return;
+    if (!detail?.route?.id) return;
 
-    const query = buildReservationQuery({
-      kind: 'vehicle',
-      vehicleId,
-      availabilitySlotId: detail.availabilitySlot.id,
-      routeId: detail.route.id,
-      travelDate,
-    });
-    router.push(`/booking/cart?${query}`);
+    setReserveError(null);
+    const token = await ensureClientAccessToken();
+    if (!token) {
+      const next = encodeURIComponent(
+        typeof window !== 'undefined'
+          ? `${window.location.pathname}${window.location.search}`
+          : buildCarDetailHref(vehicleId, searchContext),
+      );
+      router.push(`/booking/login?next=${next}`);
+      return;
+    }
+
+    setReserving(true);
+    try {
+      const trip =
+        payload.mode === 'join'
+          ? await joinPublicVehicleTrip(token, payload.tripId, {
+              seats: payload.seats,
+            })
+          : await createPublicVehicleTrip(token, {
+              vehicleId,
+              routeId: detail.route.id,
+              departureDatetime: payload.departureDatetime,
+              seats: payload.seats,
+            });
+
+      const query = buildReservationQuery({
+        kind: 'vehicle',
+        vehicleId,
+        availabilitySlotId: trip.availabilityId,
+        routeId: trip.routeId,
+        travelDate,
+        vehicleTripId: trip.id,
+        seats: payload.seats,
+        departureDatetime: trip.departureDatetime,
+      });
+      router.push(`/booking/cart?${query}`);
+    } catch {
+      setReserveError(c.reserveTripError);
+    } finally {
+      setReserving(false);
+    }
   }
 
-  const listHref = `/cars${buildCarsSearchQuery({
-    departureLocation: initialSearch.departureLocation,
-    arrivalLocation: initialSearch.arrivalLocation,
-    travelDate: travelDate || initialSearch.travelDate,
-  })}`;
+  // Retour liste sans filtres : la fiche porte les params de trajet, pas la recherche.
+  const listHref = '/cars';
 
   const sidebarProps = detail
     ? {
@@ -153,6 +194,8 @@ export function CarDetailPageContent({
         travelDate,
         onTravelDateChange: handleTravelDateChange,
         onReserve: handleReserve,
+        reserving,
+        reserveError,
         t: c,
         locale,
       }
@@ -231,12 +274,13 @@ export function CarDetailPageContent({
     );
   }
 
-  const title =
+  const vehicleTitle =
     detail.category.exampleModel ??
     detail.category.name ??
     detail.licensePlate ??
     c.categoryTitle;
-  const routeLabel = `${detail.route.departureCity} → ${detail.route.arrivalCity}`;
+  const routeTitle = `${detail.route.departureCity} → ${detail.route.arrivalCity}`;
+  const galleryName = `${routeTitle} · ${vehicleTitle}`;
 
   return (
     <div className="flex min-h-screen flex-col bg-atg-surface dark:bg-atg-surface">
@@ -260,7 +304,7 @@ export function CarDetailPageContent({
             <span className="text-atg-muted/60" aria-hidden>
               ›
             </span>
-            <span className="font-medium text-atg-fg">{title}</span>
+            <span className="font-medium text-atg-fg">{routeTitle}</span>
           </nav>
         </div>
       </div>
@@ -271,7 +315,7 @@ export function CarDetailPageContent({
             {detail.images && detail.images.length > 0 ? (
               <ProductGallery
                 images={detail.images}
-                name={title}
+                name={galleryName}
                 labels={{
                   ariaLabel: c.galleryAria,
                   openLightbox: c.galleryOpenLightbox,
@@ -284,33 +328,27 @@ export function CarDetailPageContent({
             ) : (
               <CarHeroMedia
                 imageUrl={detail.imageUrl}
-                categoryName={detail.category.name}
-                title={title}
-                agencyName={detail.agency.name}
+                categoryName={c.routeLabel}
+                title={routeTitle}
+                agencyName={`${vehicleTitle} · ${detail.agency.name}`}
                 placeholderAria={c.imagePlaceholderAria}
               />
             )}
 
             <header>
-              <p className="text-sm font-medium text-primary">{detail.category.name}</p>
-              <h1 className="mt-1 text-2xl font-bold text-atg-fg sm:text-3xl">{title}</h1>
-              <p className="mt-2 flex items-center gap-1.5 text-sm text-atg-muted">
-                <svg
-                  className="h-4 w-4 shrink-0 text-primary"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  aria-hidden
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={1.5}
-                    d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
-                  />
-                </svg>
-                {routeLabel}
+              <p className="text-sm font-medium text-primary">{c.routeLabel}</p>
+              <h1 className="mt-1 text-2xl font-bold text-atg-fg sm:text-3xl">
+                {routeTitle}
+              </h1>
+              <p className="mt-2 text-base font-medium text-atg-fg">
+                {vehicleTitle}
+                {detail.category.exampleModel &&
+                detail.category.name &&
+                detail.category.exampleModel !== detail.category.name
+                  ? ` · ${detail.category.name}`
+                  : null}
               </p>
+              <p className="mt-1 text-sm text-atg-muted">{detail.agency.name}</p>
               <p className="mt-2 text-sm text-atg-muted">
                 {formatDisplayDate(detail.travelDate, locale)}
               </p>

@@ -37,9 +37,12 @@
     "licensePlate": "Plaque d'immatriculation",
     "dailyPriceCents": "Prix journalier (centimes)",
     "currencyHint": "Devise par défaut du véhicule ; les prix se définissent par tronçon.",
+    "maxPassengers": "Capacité max (places)",
+    "maxPassengersHint": "Nombre maximum de passagers pour les trajets partagés sur /cars.",
     "validation": {
       "agencyRequired": "Agence obligatoire.",
-      "categoryRequired": "Catégorie obligatoire."
+      "categoryRequired": "Catégorie obligatoire.",
+      "maxPassengersInvalid": "Capacité entre 1 et 50 places."
     }
   },
   "view": {
@@ -82,27 +85,46 @@
   "sections": {
     "routes": {
       "title": "Tronçons",
-      "intro": "Tarifs fixes par trajet (ville de départ → ville d’arrivée, texte libre).",
+      "intro": "Trajets tarifés (ville de départ → ville d’arrivée) avec grille selon le nombre de personnes.",
       "addRoute": "Ajouter un tronçon",
       "newRoute": "Nouveau tronçon",
       "editRoute": "Modifier le tronçon",
-      "formHint": "Saisissez le départ, l’arrivée et le prix fixe du trajet.",
-      "editFormHint": "Modifiez le trajet ou le prix de ce tronçon.",
+      "formHint": "Saisissez le départ, l’arrivée, le prix de référence et la grille par nombre de personnes.",
+      "editFormHint": "Modifiez le trajet, la grille tarifaire ou la visibilité sur le site.",
       "departure": "Ville de départ",
       "arrival": "Ville d’arrivée",
-      "priceCents": "Prix (centimes)",
+      "priceCents": "Prix de référence (centimes)",
+      "priceCentsHint": "Fallback forfaits / palier 1 personne. La grille ci-dessous s’applique aux trajets partagés.",
+      "tiersTitle": "Grille tarifaire (par personne)",
+      "tiersIntro": "Chaque palier couvre une plage de passagers sans chevauchement (ex. 1–1, 2–4).",
+      "tierMin": "Min pers.",
+      "tierMax": "Max pers.",
+      "tierPrice": "Prix / pers. (centimes)",
+      "addTier": "Ajouter un palier",
+      "removeTier": "Retirer",
+      "activeLabel": "Afficher sur le site web",
+      "activeHint": "Visible dans le catalogue Locations (/cars). Un tronçon masqué reste utilisable dans les forfaits.",
+      "statusVisible": "Visible",
+      "statusHidden": "Masqué",
+      "toggleActiveAria": "Afficher ou masquer ce tronçon sur le site web",
       "empty": "Aucun tronçon pour ce véhicule.",
       "minPriceHint": "à partir de",
       "unpriced": "Non tarifé",
+      "tiersCount": "{count, plural, =0 {Aucun palier} one {# palier} other {# paliers}}",
       "count": "{count, plural, =0 {Aucun tronçon} one {# tronçon} other {# tronçons}}",
       "columns": {
         "route": "Trajet",
-        "price": "Prix"
+        "price": "Prix réf.",
+        "tiers": "Paliers",
+        "visibility": "Site web"
       },
       "validation": {
         "departureRequired": "Ville de départ obligatoire.",
         "arrivalRequired": "Ville d’arrivée obligatoire.",
-        "sameDestination": "Le départ et l’arrivée doivent être distincts."
+        "sameDestination": "Le départ et l’arrivée doivent être distincts.",
+        "tierRequired": "Au moins un palier tarifaire est requis.",
+        "tierRangeInvalid": "Pour chaque palier, min ≤ max et prix ≥ 0.",
+        "tierOverlap": "Les paliers ne doivent pas se chevaucher."
       },
       "deleteTitle": "Supprimer le tronçon",
       "deleteConfirm": "Supprimer le tronçon « {label} » ?"

@@ -190,7 +190,7 @@ export function BookingMessagesSection({
         onOpenChange={setOpen}
         title={t('title')}
         showClose
-        className="flex max-h-[min(720px,90vh)] w-full max-w-2xl flex-col"
+        className="flex h-[calc(100dvh-1.5rem)] max-h-[calc(100dvh-1.5rem)] w-full max-w-2xl flex-col overflow-hidden rounded-t-2xl sm:h-auto sm:max-h-[min(720px,calc(100dvh-2rem))] sm:rounded-xl"
       >
         {error ? (
           <p role="alert" className="mb-3 text-sm text-red-600 dark:text-red-400">

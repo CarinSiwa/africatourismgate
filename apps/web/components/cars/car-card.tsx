@@ -42,20 +42,22 @@ export function CarCard({ vehicle, t, searchParams = {}, locale }: CarCardProps)
   const specs = resolveVehicleSpecs(vehicle.categoryName);
   const hasRoute =
     Boolean(vehicle.departureCity?.trim()) && Boolean(vehicle.arrivalCity?.trim());
-  const routeLabel = hasRoute
+  const routeTitle = hasRoute
     ? `${vehicle.departureCity.trim()} → ${vehicle.arrivalCity.trim()}`
-    : null;
+    : designation;
+  const imageAlt = hasRoute ? `${routeTitle} · ${designation}` : designation;
 
   const imageOverlay = (
     <div className="absolute bottom-0 left-0 right-0 p-4 text-white">
       <p className="text-xs font-semibold uppercase tracking-wide text-white/70">
-        {vehicle.categoryName}
+        {t.routeLabel}
       </p>
-      <p className="mt-1 text-lg font-bold leading-tight">{designation}</p>
-      {routeLabel ? (
-        <p className="mt-1 text-sm font-medium text-white/90">
-          {t.routeLabel} · {routeLabel}
-        </p>
+      <p className="mt-1 text-lg font-bold leading-tight">{routeTitle}</p>
+      <p className="mt-1 text-sm font-medium text-white/90">{designation}</p>
+      {vehicle.categoryName &&
+      vehicle.exampleModel?.trim() &&
+      vehicle.exampleModel.trim() !== vehicle.categoryName ? (
+        <p className="mt-0.5 text-xs text-white/70">{vehicle.categoryName}</p>
       ) : null}
       <p className="mt-1 text-sm text-white/80">{vehicle.agencyName}</p>
     </div>
@@ -68,7 +70,7 @@ export function CarCard({ vehicle, t, searchParams = {}, locale }: CarCardProps)
           <>
             <Image
               src={vehicle.imageUrl}
-              alt={designation}
+              alt={imageAlt}
               fill
               className="object-cover"
               sizes="(max-width: 640px) 100vw, 320px"
@@ -91,21 +93,19 @@ export function CarCard({ vehicle, t, searchParams = {}, locale }: CarCardProps)
         )
       }
       title={
-        <h3 className="text-lg font-bold text-atg-fg sm:text-xl">{designation}</h3>
+        <h3 className="text-lg font-bold text-atg-fg sm:text-xl">{routeTitle}</h3>
       }
       meta={
         <>
-          {vehicle.exampleModel?.trim() &&
-          vehicle.categoryName &&
-          vehicle.exampleModel.trim() !== vehicle.categoryName ? (
-            <p className="text-sm text-atg-muted">{vehicle.categoryName}</p>
-          ) : null}
-          {routeLabel ? (
-            <p className="mt-1 text-sm font-semibold text-primary">
-              <span className="font-medium text-atg-muted">{t.routeLabel} · </span>
-              {routeLabel}
-            </p>
-          ) : null}
+          <p className="text-sm text-atg-muted">
+            <span className="font-medium text-atg-fg">{designation}</span>
+            {vehicle.exampleModel?.trim() &&
+            vehicle.categoryName &&
+            vehicle.exampleModel.trim() !== vehicle.categoryName
+              ? ` · ${vehicle.categoryName}`
+              : null}
+          </p>
+          <p className="mt-0.5 text-sm text-atg-muted">{vehicle.agencyName}</p>
           {vehicle.licensePlate ? (
             <p className="mt-0.5 text-xs text-atg-muted">
               {t.licensePlate}: {vehicle.licensePlate}

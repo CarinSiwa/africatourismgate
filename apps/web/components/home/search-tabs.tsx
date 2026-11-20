@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { useActivityDestinations } from '../../lib/activities/use-activity-destinations';
 import { listPublicDestinations } from '../../lib/api/public';
-import { useVehiclePickupLocations } from '../../lib/cars/use-vehicle-pickup-locations';
+import { useVehicleRouteOptions } from '../../lib/cars/use-vehicle-route-options';
 import { CRUISE_PORT_OPTIONS } from '../../lib/cruises/ports';
 import { toFlightAirportOptions, type FlightAirportOption } from '../../lib/flights/airports';
 import { addDays, todayISODate } from '../../lib/hotels/dates';
@@ -198,20 +198,19 @@ export function SearchTabs() {
   const router = useRouter();
   const { airports, loading: airportsLoading, error: airportsError } = usePublicAirports();
   const {
-    locations: carPickupLocations,
-    loading: carPickupLoading,
-    error: carPickupError,
-  } = useVehiclePickupLocations();
+    departureCities: carDepartureCities,
+    arrivalsForDeparture: carArrivalsForDeparture,
+    resolveRoute: resolveCarRoute,
+    hasRoute: hasCarRoute,
+    loading: carRoutesLoading,
+    error: carRoutesError,
+  } = useVehicleRouteOptions();
   const {
     destinations: activityDestinations,
     loading: activityDestinationsLoading,
     error: activityDestinationsError,
   } = useActivityDestinations();
   const airportOptions = useMemo(() => toFlightAirportOptions(airports), [airports]);
-  const carPickupOptions = useMemo(
-    () => carPickupLocations.map((location) => location.name),
-    [carPickupLocations],
-  );
   const activityDestinationOptions = useMemo(
     () => activityDestinations.map((destination) => destination.name),
     [activityDestinations],
@@ -249,6 +248,17 @@ export function SearchTabs() {
   const [carDeparture, setCarDeparture] = useState('');
   const [carArrival, setCarArrival] = useState('');
   const [carError, setCarError] = useState<string | null>(null);
+
+  const carArrivalSuggestions = useMemo(
+    () => carArrivalsForDeparture(carDeparture),
+    [carArrivalsForDeparture, carDeparture],
+  );
+  const canSwapCarRoute = useMemo(() => {
+    const dep = carDeparture.trim();
+    const arr = carArrival.trim();
+    if (!dep || !arr) return false;
+    return hasCarRoute(arr, dep);
+  }, [carArrival, carDeparture, hasCarRoute]);
   const [cruiseError, setCruiseError] = useState<string | null>(null);
   const [toursError, setToursError] = useState<string | null>(null);
   const [sailFrom, setSailFrom] = useState('');
@@ -319,19 +329,27 @@ export function SearchTabs() {
     if (activeTab === 'cars') {
       setCarError(null);
 
-      if (!carDeparture.trim() || !carArrival.trim() || !departDate) {
+      const departure = carDeparture.trim();
+      const arrival = carArrival.trim();
+
+      if (!departure || !arrival) {
         setCarError(t('carsRequired'));
         return;
       }
 
-      if (carDeparture.trim() === carArrival.trim()) {
+      if (departure === arrival) {
         setCarError(t('carsSameEndpoints'));
         return;
       }
 
-      params.set('departureLocation', carDeparture.trim());
-      params.set('arrivalLocation', carArrival.trim());
-      params.set('travelDate', departDate);
+      const resolved = resolveCarRoute(departure, arrival);
+      if (!carRoutesLoading && !carRoutesError && !resolved) {
+        setCarError(t('carsInvalidRoute'));
+        return;
+      }
+
+      params.set('departureLocation', resolved?.departureCity ?? departure);
+      params.set('arrivalLocation', resolved?.arrivalCity ?? arrival);
       router.push(buildSearchRoute('cars', params));
       return;
     }
@@ -590,48 +608,85 @@ export function SearchTabs() {
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <span className="text-sm text-atg-muted">{t('carsDurationHint')}</span>
                 </div>
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_1fr_auto] lg:items-end">
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-[1fr_auto_1fr_auto] lg:items-end">
                   <div>
                     <SearchFormLabel>{tCars('departureLocation')}</SearchFormLabel>
                     <SearchFormDatalistInput
                       name="departureLocation"
                       placeholder={
-                        carPickupLoading ? tCars('loading') : t('pickupLocationPh')
+                        carRoutesLoading ? tCars('loading') : tCars('selectDeparture')
                       }
-                      suggestions={carPickupOptions}
+                      suggestions={carDepartureCities}
                       value={carDeparture}
-                      disabled={carPickupLoading}
+                      disabled={carRoutesLoading}
                       onChange={(value) => {
                         setCarDeparture(value);
                         setCarError(null);
+                        const nextArrivals = carArrivalsForDeparture(value);
+                        const currentArrival = carArrival.trim();
+                        if (
+                          currentArrival &&
+                          nextArrivals.length > 0 &&
+                          !nextArrivals.some(
+                            (city) =>
+                              city.trim().toLowerCase() ===
+                              currentArrival.toLowerCase(),
+                          ) &&
+                          carDepartureCities.some(
+                            (city) =>
+                              city.trim().toLowerCase() === value.trim().toLowerCase(),
+                          )
+                        ) {
+                          setCarArrival('');
+                        }
                       }}
                     />
+                  </div>
+                  <div className="flex items-end pb-0.5 lg:justify-center">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!canSwapCarRoute) return;
+                        setCarDeparture(carArrival);
+                        setCarArrival(carDeparture);
+                        setCarError(null);
+                      }}
+                      disabled={!canSwapCarRoute}
+                      aria-label={t('swapAirports')}
+                      className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg border border-atg-border text-atg-muted transition-colors hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-40 dark:border-atg-border dark:hover:text-white"
+                    >
+                      <svg
+                        className="h-5 w-5"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        aria-hidden
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={1.5}
+                          d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"
+                        />
+                      </svg>
+                    </button>
                   </div>
                   <div>
                     <SearchFormLabel>{tCars('arrivalLocation')}</SearchFormLabel>
                     <SearchFormDatalistInput
                       name="arrivalLocation"
                       placeholder={
-                        carPickupLoading ? tCars('loading') : t('pickupLocationPh')
+                        carRoutesLoading
+                          ? tCars('loading')
+                          : carDeparture.trim()
+                            ? tCars('selectArrival')
+                            : tCars('selectDepartureFirst')
                       }
-                      suggestions={carPickupOptions}
+                      suggestions={carArrivalSuggestions}
                       value={carArrival}
-                      disabled={carPickupLoading}
+                      disabled={carRoutesLoading}
                       onChange={(value) => {
                         setCarArrival(value);
-                        setCarError(null);
-                      }}
-                    />
-                  </div>
-                  <div>
-                    <SearchFormLabel>{tCars('travelDate')}</SearchFormLabel>
-                    <SearchFormInput
-                      type="date"
-                      name="travelDate"
-                      value={departDate}
-                      min={today}
-                      onChange={(value) => {
-                        setDepartDate(value);
                         setCarError(null);
                       }}
                     />
@@ -644,7 +699,7 @@ export function SearchTabs() {
                     />
                   </div>
                 </div>
-                {carPickupError && (
+                {carRoutesError && (
                   <p className="text-sm text-amber-700 dark:text-amber-300" role="status">
                     {tCars('loadError')}
                   </p>

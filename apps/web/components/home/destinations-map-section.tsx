@@ -137,7 +137,10 @@ function activityHref(
       participants: 1,
     });
   }
-  return siteSearchDeepLinks.activitiesByDestination(destinationName);
+  return siteSearchDeepLinks.activity(id, {
+    destination: destinationName,
+    participants: 1,
+  });
 }
 
 export function DestinationsMapSection() {
@@ -420,9 +423,21 @@ export function DestinationsMapSection() {
     };
   }, [activeProductId, productMarkers]);
 
-  const seeMoreHref = selectedDestination
-    ? siteSearchDeepLinks.hotelsByDestination(selectedDestination.title)
-    : '/hotels';
+  const seeMoreHref = useMemo(() => {
+    const activeProduct = activeProductId
+      ? productMarkers.find((item) => item.id === activeProductId)
+      : null;
+    if (activeProduct?.href) {
+      return activeProduct.href;
+    }
+    if (productMarkers[0]?.href) {
+      return productMarkers[0].href;
+    }
+    if (selectedDestination) {
+      return siteSearchDeepLinks.hotelsByDestination(selectedDestination.title);
+    }
+    return '/hotels';
+  }, [activeProductId, productMarkers, selectedDestination]);
 
   const markers = useMemo(() => {
     if (!selectedDestination) {

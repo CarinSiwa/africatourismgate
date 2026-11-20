@@ -32,6 +32,12 @@ export type VehicleReservationDraft = {
   availabilitySlotId: string;
   routeId: string;
   travelDate: string;
+  /** Shared trip — required for tier pricing / multi-seat checkout. */
+  vehicleTripId?: string;
+  /** Seats claimed on the shared trip (checkout quantity). Default 1. */
+  seats?: number;
+  /** ISO departure datetime from the trip (display). */
+  departureDatetime?: string;
 };
 
 export type CabinReservationDraft = {
@@ -244,6 +250,10 @@ export function parseReservationDraft(
     const routeId = readString(searchParams.routeId);
     const travelDate =
       readString(searchParams.travelDate) || readString(searchParams.pickupDate);
+    const vehicleTripId = readString(searchParams.vehicleTripId) || undefined;
+    const seats = readPositiveInt(searchParams.seats) ?? undefined;
+    const departureDatetime =
+      readString(searchParams.departureDatetime) || undefined;
 
     if (!vehicleId || !availabilitySlotId || !routeId || !travelDate) {
       return null;
@@ -255,6 +265,9 @@ export function parseReservationDraft(
       availabilitySlotId,
       routeId,
       travelDate,
+      ...(vehicleTripId ? { vehicleTripId } : {}),
+      ...(seats != null ? { seats } : {}),
+      ...(departureDatetime ? { departureDatetime } : {}),
     };
   }
 
@@ -337,6 +350,15 @@ export function buildReservationQuery(draft: ReservationDraft): string {
       routeId: draft.routeId,
       travelDate: draft.travelDate,
     });
+    if (draft.vehicleTripId) {
+      params.set('vehicleTripId', draft.vehicleTripId);
+    }
+    if (draft.seats != null && draft.seats >= 1) {
+      params.set('seats', String(draft.seats));
+    }
+    if (draft.departureDatetime) {
+      params.set('departureDatetime', draft.departureDatetime);
+    }
     return params.toString();
   }
 
@@ -395,13 +417,15 @@ export function buildCheckoutItems(draft: ReservationDraft): BookingCheckoutItem
   }
 
   if (draft.kind === 'vehicle') {
+    const seats = draft.seats != null && draft.seats >= 1 ? draft.seats : 1;
     return [
       {
         itemType: 'vehicle',
         referenceId: draft.availabilitySlotId,
-        quantity: 1,
+        quantity: draft.vehicleTripId ? seats : 1,
         routeId: draft.routeId,
         startDate: draft.travelDate,
+        ...(draft.vehicleTripId ? { vehicleTripId: draft.vehicleTripId } : {}),
       },
     ];
   }

@@ -1,9 +1,11 @@
 import {
   BadRequestException,
+  Inject,
   Injectable,
   Logger,
   NotFoundException,
   ServiceUnavailableException,
+  forwardRef,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, Repository } from 'typeorm';
@@ -65,6 +67,7 @@ export class StripeService {
     private readonly bookingsRepository: Repository<Bookings>,
     @InjectRepository(Payments)
     private readonly paymentsRepository: Repository<Payments>,
+    @Inject(forwardRef(() => BookingEngineService))
     private readonly bookingEngine: BookingEngineService,
     private readonly loyaltyAccountsService: LoyaltyAccountsService,
   ) {}
@@ -322,6 +325,75 @@ export class StripeService {
       );
     }
 
+    return this.executeStripeRefund({
+      payment,
+      booking,
+      amountCents,
+      actorUserId,
+      idempotencyKey: `refund-${paymentId}-${amountCents ?? 'full'}`,
+      finalizeBookingOnFullRefund: true,
+    });
+  }
+
+  /**
+   * Partial refund while the booking stays confirmed — used when shared-trip
+   * headcount rises and the per-person tier price drops.
+   */
+  async createEqualizationRefundForPayment(
+    paymentId: string,
+    amountCents: number,
+    idempotencyKey: string,
+  ): Promise<RefundPaymentResult> {
+    const payment = await this.paymentsRepository.findOne({
+      where: { id: paymentId, deletedAt: IsNull() },
+    });
+    if (!payment) {
+      throw new NotFoundException('Paiement introuvable.');
+    }
+    if (payment.status === 'refunded') {
+      throw new BadRequestException('Ce paiement est déjà entièrement remboursé.');
+    }
+    if (payment.status !== 'succeeded') {
+      throw new BadRequestException(
+        `Remboursement d’égalisation impossible : statut paiement « ${payment.status} ».`,
+      );
+    }
+    if (payment.provider !== STRIPE_PROVIDER) {
+      throw new BadRequestException('Remboursement réservé aux paiements Stripe.');
+    }
+
+    const booking = await this.bookingsRepository.findOne({
+      where: { id: payment.bookingId, deletedAt: IsNull() },
+    });
+    if (!booking) {
+      throw new NotFoundException('Réservation introuvable.');
+    }
+    if (booking.status === 'cancelled' || booking.status === 'refunded') {
+      throw new BadRequestException(
+        'Remboursement d’égalisation impossible sur une réservation annulée/remboursée.',
+      );
+    }
+
+    return this.executeStripeRefund({
+      payment,
+      booking,
+      amountCents,
+      idempotencyKey,
+      finalizeBookingOnFullRefund: false,
+    });
+  }
+
+  private async executeStripeRefund(params: {
+    payment: Payments;
+    booking: Bookings;
+    amountCents?: number;
+    actorUserId?: string;
+    idempotencyKey: string;
+    finalizeBookingOnFullRefund: boolean;
+  }): Promise<RefundPaymentResult> {
+    const { payment, booking } = params;
+    const paymentId = payment.id;
+
     const paymentIntentId = await this.resolvePaymentIntentId(payment.externalId);
     const stripe = this.getStripe();
     const refundedSoFar = await this.getTotalRefundedCents(paymentIntentId);
@@ -331,14 +403,13 @@ export class StripeService {
       throw new BadRequestException('Ce paiement est déjà entièrement remboursé sur Stripe.');
     }
 
-    const refundAmount = amountCents ?? remaining;
+    const refundAmount = params.amountCents ?? remaining;
     if (refundAmount < 1 || refundAmount > remaining) {
       throw new BadRequestException(
         `Montant invalide : ${refundAmount} centimes (reste remboursable : ${remaining}).`,
       );
     }
 
-    const idempotencyKey = `refund-${paymentId}-${refundAmount}`;
     const refund = await stripe.refunds.create(
       {
         payment_intent: paymentIntentId,
@@ -348,16 +419,23 @@ export class StripeService {
           [STRIPE_METADATA_PAYMENT_ID]: paymentId,
         },
       },
-      { idempotencyKey },
+      { idempotencyKey: params.idempotencyKey },
     );
 
-    if (refund.status === 'succeeded') {
+    if (refund.status === 'succeeded' && params.finalizeBookingOnFullRefund) {
       await this.markPaymentRefundedAndFinalizeBooking({
         paymentId,
         bookingId: payment.bookingId,
         paymentIntentId,
-        actorUserId,
+        actorUserId: params.actorUserId,
       });
+    } else if (refund.status === 'succeeded') {
+      // Equalization: mark payment refunded only when Stripe balance is fully returned.
+      const totalRefunded = await this.getTotalRefundedCents(paymentIntentId);
+      if (totalRefunded >= payment.amountCents && payment.status === 'succeeded') {
+        payment.status = 'refunded';
+        await this.paymentsRepository.save(payment);
+      }
     }
 
     const updatedPayment = await this.paymentsRepository.findOne({
@@ -482,6 +560,7 @@ export class StripeService {
           'Confirmation via webhook Stripe (idempotent)',
         );
       }
+      await this.bookingEngine.equalizeSharedVehicleTripsForBooking(params.bookingId);
       return;
     }
 
@@ -512,6 +591,8 @@ export class StripeService {
         `OneKey points award failed for payment ${payment.id}: ${err instanceof Error ? err.message : err}`,
       );
     }
+
+    await this.bookingEngine.equalizeSharedVehicleTripsForBooking(params.bookingId);
   }
 
   private async findPayableBooking(bookingId: string): Promise<Bookings> {

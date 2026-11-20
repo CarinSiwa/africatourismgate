@@ -267,8 +267,8 @@ test.describe('i18n pages FR → EN', () => {
       {
         path: '/cars',
         note: 'cars.heroTitle',
-        fr: 'Location de voitures en Afrique',
-        en: 'Car rental in Africa',
+        fr: 'Tronçons en Afrique',
+        en: 'Route segments in Africa',
       },
       {
         path: '/cruises',

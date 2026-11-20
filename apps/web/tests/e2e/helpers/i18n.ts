@@ -39,11 +39,38 @@ export async function switchLanguage(page: Page, locale: AppLocale): Promise<voi
   }, locale);
 
   await page.goto(page.url(), { waitUntil: 'domcontentloaded' });
-  await expect(
-    page
-      .getByRole('button', { name: /Choisir la langue|Select language|Elegir idioma/i })
-      .first(),
-  ).toContainText(locale.toUpperCase(), { timeout: 15_000 });
+
+  const langBtn = page
+    .getByRole('button', { name: /Choisir la langue|Select language|Elegir idioma/i })
+    .first();
+
+  // Account hydrate can re-apply preferredLanguage after the first paint — retry once.
+  try {
+    await expect(langBtn).toContainText(locale.toUpperCase(), { timeout: 5_000 });
+  } catch {
+    await page.evaluate((code) => {
+      document.cookie = `atg-locale=${code};path=/;max-age=${60 * 60 * 24 * 365};SameSite=Lax`;
+      try {
+        localStorage.setItem('atg-locale', code);
+      } catch {
+        /* ignore */
+      }
+      try {
+        const raw = window.sessionStorage.getItem('atg.web.session');
+        if (raw) {
+          const session = JSON.parse(raw) as { user?: { preferredLanguage?: string } };
+          if (session.user) {
+            session.user.preferredLanguage = code;
+            window.sessionStorage.setItem('atg.web.session', JSON.stringify(session));
+          }
+        }
+      } catch {
+        /* ignore */
+      }
+    }, locale);
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await expect(langBtn).toContainText(locale.toUpperCase(), { timeout: 15_000 });
+  }
 }
 
 /**

@@ -19,7 +19,9 @@ import type {
   ResolvedBookingDeposits,
   ResolvedBookingItemTypeModes,
   ResolvedCatalogProducts,
+  ResolvedVehicleSharedTrip,
   ResolvedWebPaymentMethods,
+  VehicleSharedTripDepartureEditRule,
   WebPaymentMethodKey,
 } from '@africatourismgate/types';
 import {
@@ -32,11 +34,14 @@ import {
   DEFAULT_BOOKING_DEPOSITS,
   DEFAULT_CATALOG_PRODUCTS,
   DEFAULT_LOYALTY_ONEKEY_SETTING,
+  DEFAULT_VEHICLE_SHARED_TRIP,
   DEFAULT_WEB_PAYMENT_METHODS,
+  VEHICLE_SHARED_TRIP_DEPARTURE_EDIT_RULES,
   WEB_PAYMENT_METHOD_KEYS,
   bookingDepositsMode,
   normalizeBookingDeposits,
   normalizeCatalogProducts,
+  normalizeVehicleSharedTrip,
   normalizeWebPaymentMethods,
 } from '@africatourismgate/types/organization-settings';
 import { useTranslations } from 'next-intl';
@@ -130,6 +135,8 @@ type SettingsFormValues = {
   depositsMode: BookingDepositsMode;
   depositPercent: string;
   depositFixedMajor: string;
+  paymentCloseHoursBeforeDeparture: string;
+  departureTimeEditableUntil: VehicleSharedTripDepartureEditRule;
 };
 
 function centsToMajorString(cents: number | null): string {
@@ -164,6 +171,18 @@ function depositsToFormFields(deposits: ResolvedBookingDeposits): Pick<
   };
 }
 
+function vehicleSharedTripToFormFields(
+  rules: ResolvedVehicleSharedTrip,
+): Pick<
+  SettingsFormValues,
+  'paymentCloseHoursBeforeDeparture' | 'departureTimeEditableUntil'
+> {
+  return {
+    paymentCloseHoursBeforeDeparture: String(rules.paymentCloseHoursBeforeDeparture),
+    departureTimeEditableUntil: rules.departureTimeEditableUntil,
+  };
+}
+
 const defaultValues: SettingsFormValues = {
   contactEmail: '',
   contactPhone: '',
@@ -189,6 +208,7 @@ const defaultValues: SettingsFormValues = {
   paymentMethods: { ...DEFAULT_WEB_PAYMENT_METHODS },
   catalogProducts: { ...DEFAULT_CATALOG_PRODUCTS },
   ...depositsToFormFields(DEFAULT_BOOKING_DEPOSITS),
+  ...vehicleSharedTripToFormFields(DEFAULT_VEHICLE_SHARED_TRIP),
 };
 
 function settingByKey(
@@ -224,6 +244,11 @@ function toFormValues(
       | { enabled: boolean; depositPercent?: number; depositFixedCents?: number }
       | undefined,
   );
+  const vehicleSharedTrip = normalizeVehicleSharedTrip(
+    settingByKey(settings, 'vehicle_shared_trip') as
+      | Partial<ResolvedVehicleSharedTrip>
+      | undefined,
+  );
 
   return {
     contactEmail: org.contactEmail ?? '',
@@ -253,6 +278,7 @@ function toFormValues(
     paymentMethods,
     catalogProducts,
     ...depositsToFormFields(deposits),
+    ...vehicleSharedTripToFormFields(vehicleSharedTrip),
   };
 }
 
@@ -298,6 +324,15 @@ export function OrganizationSettingsForm({
       { value: 'percent', label: t('sections.booking.depositsModePercent') },
       { value: 'fixed', label: t('sections.booking.depositsModeFixed') },
     ],
+    [t],
+  );
+
+  const departureEditRuleOptions = useMemo(
+    () =>
+      VEHICLE_SHARED_TRIP_DEPARTURE_EDIT_RULES.map((rule) => ({
+        value: rule,
+        label: t(`sections.booking.departureEditRules.${rule}`),
+      })),
     [t],
   );
 
@@ -448,6 +483,12 @@ export function OrganizationSettingsForm({
         }
       }
     }
+    const closeHours = Number(values.paymentCloseHoursBeforeDeparture);
+    if (!Number.isInteger(closeHours) || closeHours < 0 || closeHours > 168) {
+      errors.paymentCloseHoursBeforeDeparture = t(
+        'validation.paymentCloseHoursInvalid',
+      );
+    }
     setFieldErrors(errors);
     return Object.keys(errors).length === 0;
   }
@@ -537,6 +578,16 @@ export function OrganizationSettingsForm({
                   : {}),
               };
             })(),
+          },
+          {
+            settingGroup: 'booking',
+            settingKey: 'vehicle_shared_trip',
+            settingValue: {
+              paymentCloseHoursBeforeDeparture: Number(
+                values.paymentCloseHoursBeforeDeparture,
+              ),
+              departureTimeEditableUntil: values.departureTimeEditableUntil,
+            },
           },
           {
             settingGroup: 'branding',
@@ -910,6 +961,39 @@ export function OrganizationSettingsForm({
                   placeholder="50.00"
                 />
               )}
+            </div>
+            <div className="space-y-3 border-t border-atg-border pt-4">
+              <p className="text-sm font-medium text-atg-fg">
+                {t('sections.booking.vehicleSharedTripTitle')}
+              </p>
+              <p className="text-xs text-atg-muted">
+                {t('sections.booking.vehicleSharedTripDescription')}
+              </p>
+              <Input
+                label={t('sections.booking.paymentCloseHours')}
+                type="number"
+                min={0}
+                max={168}
+                step={1}
+                value={values.paymentCloseHoursBeforeDeparture}
+                onChange={(e) =>
+                  updateField('paymentCloseHoursBeforeDeparture', e.target.value)
+                }
+                error={fieldErrors.paymentCloseHoursBeforeDeparture}
+                hint={t('sections.booking.paymentCloseHoursHint')}
+              />
+              <Select
+                label={t('sections.booking.departureEditRule')}
+                options={departureEditRuleOptions}
+                value={values.departureTimeEditableUntil}
+                onChange={(e) =>
+                  updateField(
+                    'departureTimeEditableUntil',
+                    e.target.value as VehicleSharedTripDepartureEditRule,
+                  )
+                }
+                hint={t('sections.booking.departureEditRuleHint')}
+              />
             </div>
           </Card>
 

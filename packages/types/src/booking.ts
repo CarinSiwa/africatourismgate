@@ -51,6 +51,11 @@ export interface BookingCheckoutItem {
   date?: string;
   /** Vehicle tronçon id (`vehicle_routes`) — required for vehicle lines. */
   routeId?: string;
+  /**
+   * Shared vehicle trip id (`vehicle_trips`).
+   * When set, quantity = seats, price from tier grid(N), slot is not marked rented.
+   */
+  vehicleTripId?: string;
 }
 
 export interface BookingCheckoutRequest {
@@ -97,6 +102,8 @@ export interface BookingCheckoutLine {
   currency: string;
   startDate: string | null;
   endDate: string | null;
+  routeId?: string | null;
+  vehicleTripId?: string | null;
 }
 
 export interface BookingCheckoutPreview {
@@ -123,6 +130,10 @@ export interface BookingItem {
   endDate: string | null;
   createdAt: string;
   updatedAt: string | null;
+  /** Shared vehicle trip (`vehicle_trips`) when applicable. */
+  vehicleTripId?: string | null;
+  /** Vehicle tronçon (`vehicle_routes`) when applicable. */
+  routeId?: string | null;
   /**
    * Parent catalogue product id for admin deep-links
    * (property, flight, vehicle, sailing, activity, package).

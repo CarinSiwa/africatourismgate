@@ -8,7 +8,6 @@ import {
   type CarsSearchParams,
 } from '../../lib/cars/listings';
 import type { VehicleSearchResult } from '../../lib/cars/types';
-import { formatDisplayDate } from '../../lib/hotels/dates';
 import { useLocale, useTranslations } from 'next-intl';
 import { useNamespaceLabels } from '../../lib/i18n/use-namespace-labels';
 import { HomeFooter } from '../home/home-footer';
@@ -98,13 +97,6 @@ export function CarsPageContent({ initialSearch }: CarsPageContentProps) {
 
   const paginationLabels = useMemo(() => toListingPaginationLabels(tListing), [tListing]);
 
-  const searchSummary = [
-    initialSearch.travelDate &&
-      `${c.travelDate}: ${formatDisplayDate(initialSearch.travelDate, locale)}`,
-  ]
-    .filter(Boolean)
-    .join(' · ');
-
   const defaultDetailSearchParams = {
     departureLocation: initialSearch.departureLocation,
     arrivalLocation: initialSearch.arrivalLocation,
@@ -142,12 +134,6 @@ export function CarsPageContent({ initialSearch }: CarsPageContentProps) {
           <p className="mt-4 max-w-2xl text-base leading-relaxed text-white/80 sm:text-lg">
             {c.heroSubtitle}
           </p>
-
-          {searchSummary && (
-            <p className="mt-6 rounded-lg bg-white/10 px-4 py-2 text-sm text-white/90 backdrop-blur-sm">
-              {searchSummary}
-            </p>
-          )}
 
           <CarsSearchForm initialValues={initialSearch} />
         </div>

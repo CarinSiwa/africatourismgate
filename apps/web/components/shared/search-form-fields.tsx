@@ -1,7 +1,7 @@
 'use client';
 
-import type { ReactNode } from 'react';
-import { useEffect, useId, useMemo, useState } from 'react';
+import type { FocusEvent, KeyboardEvent, ReactNode } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { cn } from '@africatourismgate/ui';
 
@@ -10,6 +10,23 @@ const fieldInputClass =
 
 /** Classes de base des champs — réutilisable pour selects personnalisés. */
 export const searchFormFieldClass = fieldInputClass;
+
+function safeDomId(reactId: string): string {
+  return reactId.replace(/:/g, '');
+}
+
+function filterSuggestions(suggestions: string[], query: string): string[] {
+  const needle = query.trim().toLowerCase();
+  if (!needle) return suggestions;
+  const filtered = suggestions.filter((option) =>
+    option.toLowerCase().includes(needle),
+  );
+  // Exact single match → keep full list so the user can switch destination.
+  if (filtered.length === 1 && filtered[0].toLowerCase() === needle) {
+    return suggestions;
+  }
+  return filtered;
+}
 
 /** Libellé champ recherche — texte fourni par le parent (i18n). */
 export function SearchFormLabel({ children }: { children: ReactNode }) {
@@ -60,14 +77,14 @@ export type SearchFormDatalistInputProps = {
   name: string;
   placeholder?: string;
   value: string;
-  /** Suggestions affichées à la saisie — la valeur libre reste acceptée. */
+  /** Suggestions filtrées à la saisie / au focus — la valeur libre reste acceptée. */
   suggestions?: string[];
   disabled?: boolean;
   onChange: (value: string) => void;
   className?: string;
 };
 
-/** Champ texte libre avec suggestions (datalist HTML). */
+/** Champ texte libre avec panneau d’autocomplétion visible. */
 export function SearchFormDatalistInput({
   name,
   placeholder,
@@ -77,18 +94,100 @@ export function SearchFormDatalistInput({
   onChange,
   className,
 }: SearchFormDatalistInputProps) {
-  const listId = useId();
+  const reactId = useId();
+  const listId = safeDomId(reactId);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [open, setOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(-1);
+
+  const filtered = useMemo(
+    () => filterSuggestions(suggestions, value),
+    [suggestions, value],
+  );
+  const showPanel = open && !disabled && filtered.length > 0;
+  const activeOptionId =
+    activeIndex >= 0 && activeIndex < filtered.length
+      ? `${listId}-option-${activeIndex}`
+      : undefined;
+
+  useEffect(() => {
+    setActiveIndex(-1);
+  }, [value, suggestions]);
+
+  function selectSuggestion(option: string) {
+    onChange(option);
+    setOpen(false);
+    setActiveIndex(-1);
+  }
+
+  function handleBlur(event: FocusEvent<HTMLDivElement>) {
+    const next = event.relatedTarget as Node | null;
+    if (containerRef.current?.contains(next)) return;
+    setOpen(false);
+    setActiveIndex(-1);
+  }
+
+  function handleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    if (!showPanel) {
+      if (event.key === 'ArrowDown' && filtered.length > 0) {
+        event.preventDefault();
+        setOpen(true);
+        setActiveIndex(0);
+      }
+      return;
+    }
+
+    switch (event.key) {
+      case 'ArrowDown': {
+        event.preventDefault();
+        setActiveIndex((current) =>
+          current < filtered.length - 1 ? current + 1 : 0,
+        );
+        break;
+      }
+      case 'ArrowUp': {
+        event.preventDefault();
+        setActiveIndex((current) =>
+          current <= 0 ? filtered.length - 1 : current - 1,
+        );
+        break;
+      }
+      case 'Enter': {
+        if (activeIndex < 0 || activeIndex >= filtered.length) return;
+        event.preventDefault();
+        selectSuggestion(filtered[activeIndex]);
+        break;
+      }
+      case 'Escape': {
+        event.preventDefault();
+        setOpen(false);
+        setActiveIndex(-1);
+        break;
+      }
+      default:
+        break;
+    }
+  }
 
   return (
-    <>
+    <div ref={containerRef} className="relative" onBlur={handleBlur}>
       <input
         type="text"
         name={name}
         placeholder={placeholder}
         value={value}
         disabled={disabled}
-        list={suggestions.length > 0 ? listId : undefined}
-        onChange={(e) => onChange(e.target.value)}
+        role="combobox"
+        aria-expanded={showPanel}
+        aria-controls={showPanel ? listId : undefined}
+        aria-autocomplete="list"
+        aria-activedescendant={activeOptionId}
+        onChange={(e) => {
+          onChange(e.target.value);
+          setOpen(true);
+        }}
+        onFocus={() => setOpen(true)}
+        onKeyDown={handleKeyDown}
         className={cn(
           fieldInputClass,
           'disabled:cursor-not-allowed disabled:opacity-60',
@@ -96,14 +195,40 @@ export function SearchFormDatalistInput({
         )}
         autoComplete="off"
       />
-      {suggestions.length > 0 ? (
-        <datalist id={listId}>
-          {suggestions.map((option) => (
-            <option key={option} value={option} />
-          ))}
-        </datalist>
+      {showPanel ? (
+        <ul
+          id={listId}
+          role="listbox"
+          className="absolute z-30 mt-1 max-h-56 w-full overflow-auto rounded-lg border border-atg-border bg-atg-elevated py-1 shadow-lg dark:border-atg-border dark:bg-atg-surface"
+        >
+          {filtered.map((option, index) => {
+            const optionId = `${listId}-option-${index}`;
+            const isActive = index === activeIndex;
+            return (
+              <li key={option} role="presentation">
+                <button
+                  type="button"
+                  id={optionId}
+                  role="option"
+                  aria-selected={isActive}
+                  className={cn(
+                    'flex w-full min-h-[40px] items-center px-3 text-left text-sm text-atg-fg transition-colors hover:bg-primary/10 hover:text-primary',
+                    isActive && 'bg-primary/10 text-primary',
+                  )}
+                  onMouseDown={(event) => {
+                    event.preventDefault();
+                    selectSuggestion(option);
+                  }}
+                  onMouseEnter={() => setActiveIndex(index)}
+                >
+                  {option}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
       ) : null}
-    </>
+    </div>
   );
 }
 
@@ -151,7 +276,6 @@ export function SearchFormOptionDatalistInput({
   onChange,
   className,
 }: SearchFormOptionDatalistInputProps) {
-  const listId = useId();
   const selected = options.find((option) => option.value === value);
   const [text, setText] = useState(selected?.label ?? value);
 
@@ -164,40 +288,23 @@ export function SearchFormOptionDatalistInput({
     const unique = new Set<string>();
     for (const option of options) {
       unique.add(option.label);
-      unique.add(option.value);
     }
     return Array.from(unique);
   }, [options]);
 
   return (
-    <>
-      <input
-        type="text"
-        name={name}
-        placeholder={placeholder}
-        value={text}
-        disabled={disabled}
-        list={suggestions.length > 0 ? listId : undefined}
-        onChange={(e) => {
-          const next = e.target.value;
-          setText(next);
-          onChange(resolveSearchOptionInput(next, options));
-        }}
-        className={cn(
-          fieldInputClass,
-          'disabled:cursor-not-allowed disabled:opacity-60',
-          className,
-        )}
-        autoComplete="off"
-      />
-      {suggestions.length > 0 ? (
-        <datalist id={listId}>
-          {suggestions.map((suggestion) => (
-            <option key={suggestion} value={suggestion} />
-          ))}
-        </datalist>
-      ) : null}
-    </>
+    <SearchFormDatalistInput
+      name={name}
+      placeholder={placeholder}
+      value={text}
+      suggestions={suggestions}
+      disabled={disabled}
+      className={className}
+      onChange={(next) => {
+        setText(next);
+        onChange(resolveSearchOptionInput(next, options));
+      }}
+    />
   );
 }
 

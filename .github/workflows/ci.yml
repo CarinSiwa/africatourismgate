@@ -11,7 +11,8 @@ concurrency:
 
 jobs:
   lint-build-test:
-    runs-on: ubuntu-latest
+    # Pin until Playwright in lockfile (≥1.61) supports ubuntu-latest (26.04).
+    runs-on: ubuntu-24.04
     services:
       mysql:
         image: mysql:8.0
@@ -82,7 +83,7 @@ jobs:
         run: pnpm --filter @africatourismgate/api test:e2e
 
   pos:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     services:
       mysql:
         image: mysql:8.0
@@ -147,7 +148,7 @@ jobs:
 
   # Build web once, then run Playwright in parallel shards (mocked API — no MySQL).
   web-e2e-build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     env:
       CI: true
       NEXT_PUBLIC_API_URL: http://localhost:3000/api
@@ -192,7 +193,7 @@ jobs:
 
   web-e2e:
     needs: web-e2e-build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
@@ -235,7 +236,7 @@ jobs:
         id: playwright-cache
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-chromium-${{ runner.os }}-${{ steps.playwright-version.outputs.version }}
+          key: playwright-chromium-ubuntu-24.04-${{ steps.playwright-version.outputs.version }}
 
       - name: Install Playwright browsers
         if: steps.playwright-cache.outputs.cache-hit != 'true'

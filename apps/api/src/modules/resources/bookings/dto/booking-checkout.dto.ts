@@ -78,6 +78,15 @@ export class BookingCheckoutItemDto {
   @IsOptional()
   @IsUUID('4')
   routeId?: string;
+
+  @ApiPropertyOptional({
+    format: 'uuid',
+    description:
+      'Shared vehicle trip (vehicle_trips.id). When set, quantity = seats and price follows the tier grid for current N.',
+  })
+  @IsOptional()
+  @IsUUID('4')
+  vehicleTripId?: string;
 }
 
 export class BookingCheckoutDto {

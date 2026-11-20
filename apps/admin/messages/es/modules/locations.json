@@ -37,9 +37,12 @@
     "licensePlate": "Matrícula",
     "dailyPriceCents": "Precio diario (céntimos)",
     "currencyHint": "Moneda por defecto del vehículo; los precios se definen por tramo.",
+    "maxPassengers": "Capacidad máx. (plazas)",
+    "maxPassengersHint": "Número máximo de pasajeros para viajes compartidos en /cars.",
     "validation": {
       "agencyRequired": "La agencia es obligatoria.",
-      "categoryRequired": "La categoría es obligatoria."
+      "categoryRequired": "La categoría es obligatoria.",
+      "maxPassengersInvalid": "La capacidad debe estar entre 1 y 50 plazas."
     }
   },
   "view": {
@@ -82,27 +85,46 @@
   "sections": {
     "routes": {
       "title": "Tramos",
-      "intro": "Tarifas fijas por trayecto (ciudad de salida → ciudad de llegada, texto libre).",
+      "intro": "Trayectos tarifados (ciudad de salida → ciudad de llegada) con grilla según personas.",
       "addRoute": "Añadir tramo",
       "newRoute": "Nuevo tramo",
       "editRoute": "Editar tramo",
-      "formHint": "Escriba la salida, la llegada y el precio fijo del trayecto.",
-      "editFormHint": "Modifique el trayecto o el precio de este tramo.",
+      "formHint": "Indique salida, llegada, precio de referencia y la grilla por número de personas.",
+      "editFormHint": "Modifique el trayecto, la grilla tarifaria o la visibilidad en el sitio.",
       "departure": "Ciudad de salida",
       "arrival": "Ciudad de llegada",
-      "priceCents": "Precio (céntimos)",
+      "priceCents": "Precio de referencia (céntimos)",
+      "priceCentsHint": "Fallback paquetes / tramo 1 persona. La grilla inferior aplica a viajes compartidos.",
+      "tiersTitle": "Grilla tarifaria (por persona)",
+      "tiersIntro": "Cada tramo cubre un rango de pasajeros sin solaparse (ej. 1–1, 2–4).",
+      "tierMin": "Mín. pers.",
+      "tierMax": "Máx. pers.",
+      "tierPrice": "Precio / pers. (céntimos)",
+      "addTier": "Añadir tramo",
+      "removeTier": "Quitar",
+      "activeLabel": "Mostrar en el sitio web",
+      "activeHint": "Visible en el catálogo de coches (/cars). Un tramo oculto sigue disponible en los paquetes.",
+      "statusVisible": "Visible",
+      "statusHidden": "Oculto",
+      "toggleActiveAria": "Mostrar u ocultar este tramo en el sitio web",
       "empty": "Ningún tramo para este vehículo.",
       "minPriceHint": "desde",
       "unpriced": "Sin tarifa",
+      "tiersCount": "{count, plural, =0 {Ningún tramo} one {# tramo} other {# tramos}}",
       "count": "{count, plural, =0 {Ningún tramo} one {# tramo} other {# tramos}}",
       "columns": {
         "route": "Trayecto",
-        "price": "Precio"
+        "price": "Precio ref.",
+        "tiers": "Tramos",
+        "visibility": "Sitio web"
       },
       "validation": {
         "departureRequired": "La ciudad de salida es obligatoria.",
         "arrivalRequired": "La ciudad de llegada es obligatoria.",
-        "sameDestination": "La salida y la llegada deben ser distintas."
+        "sameDestination": "La salida y la llegada deben ser distintas.",
+        "tierRequired": "Se requiere al menos un tramo tarifario.",
+        "tierRangeInvalid": "En cada tramo, mín ≤ máx y precio ≥ 0.",
+        "tierOverlap": "Los tramos no deben solaparse."
       },
       "deleteTitle": "Eliminar tramo",
       "deleteConfirm": "¿Eliminar el tramo « {label} »?"
