@@ -141,7 +141,9 @@ jobs:
         run: pnpm db:sync
 
       - name: Install Playwright browsers
-        run: pnpm --filter @africatourismgate/pos exec playwright install --with-deps chromium
+        run: |
+          sudo apt-get update
+          pnpm --filter @africatourismgate/pos exec playwright install --with-deps chromium
 
       - name: POS E2E tests
         run: pnpm --filter @africatourismgate/pos test:e2e
@@ -238,13 +240,14 @@ jobs:
           path: ~/.cache/ms-playwright
           key: playwright-chromium-ubuntu-24.04-${{ steps.playwright-version.outputs.version }}
 
-      - name: Install Playwright browsers
-        if: steps.playwright-cache.outputs.cache-hit != 'true'
-        run: pnpm --filter @africatourismgate/web exec playwright install --with-deps chromium
-
-      - name: Install Playwright system deps
-        if: steps.playwright-cache.outputs.cache-hit == 'true'
-        run: pnpm --filter @africatourismgate/web exec playwright install-deps chromium
+      # Always refresh Ubuntu archives before Playwright apt installs. On cache hit,
+      # `install-deps` alone can update only packages.microsoft.com and then fail to
+      # locate universe fonts (fonts-unifont, xfonts-*, …). Cached browser binaries
+      # still make `playwright install` cheap.
+      - name: Install Playwright Chromium + OS deps
+        run: |
+          sudo apt-get update
+          pnpm --filter @africatourismgate/web exec playwright install --with-deps chromium
 
       - name: Web E2E shard ${{ matrix.shardIndex }}/4
         working-directory: apps/web
